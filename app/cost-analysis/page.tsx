@@ -1,8 +1,201 @@
 "use client";
-import { useEffect,useState } from "react";
-import { Activity,AlertTriangle,BarChart3,FileBarChart,TrendingDown,TrendingUp,Wallet } from "lucide-react";
+
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, BarChart3, CheckCircle2, CircleDollarSign, FileBarChart2, RefreshCw, WalletCards } from "lucide-react";
 import type { ReactNode } from "react";
-type Project={_id:string;name:string};type Analysis={project:{name:string;budget:number;contractAmount:number};estimate:Record<string,number>;spent:Record<string,number>;estimatedTotal:number;actualTotal:number;variance:number;budgetRemaining:number;projectedProfit:number;boqCount:number;entryCount:number;physicalProgress:number;financialProgress:number;budgetUtilization:number;progressGap:number;progressStatus:string};
-const money=(n:number)=>new Intl.NumberFormat("en-PH",{style:"currency",currency:"PHP",maximumFractionDigits:2}).format(n);const rows=[["Materials","Materials","Material"],["Labor","Labor","Labor"],["Equipment","Equipment","Equipment"],["Other","Other","Expense"]] as const;
-export default function CostAnalysisPage(){const[projects,setProjects]=useState<Project[]>([]);const[projectId,setProjectId]=useState("");const[data,setData]=useState<Analysis|null>(null);const[loading,setLoading]=useState(false);const[error,setError]=useState("");useEffect(()=>{fetch("/api/projects").then(r=>r.json()).then(p=>{setProjects(Array.isArray(p)?p:[]);if(p[0])setProjectId(p[0]._id)}).catch(()=>setError("Could not load projects."))},[]);useEffect(()=>{if(!projectId)return;setLoading(true);fetch(`/api/cost-analysis?projectId=${projectId}`).then(r=>{if(!r.ok)throw new Error();return r.json()}).then(setData).catch(()=>setError("Could not calculate project costs.")).finally(()=>setLoading(false))},[projectId]);return <main className="p-5 md:p-8"><div className="mx-auto max-w-[1500px]"><div className="border-b border-slate-200 pb-5"><div className="text-[10px] font-bold uppercase tracking-[.16em] text-blue-600">Project Controls</div><h1 className="mt-1 text-2xl font-bold tracking-tight">Cost Analysis</h1><p className="mt-1 text-sm text-slate-500">Financial control against estimate, budget and physical work progress.</p></div>{error&&<div className="mt-5 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}<div className="mt-5 flex items-center gap-3 border border-slate-200 bg-white p-4"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Project</span><select value={projectId} onChange={e=>setProjectId(e.target.value)} className="w-full max-w-xl border border-slate-300 px-3 py-2.5 text-sm"><option value="">Select a project</option>{projects.map(p=><option key={p._id} value={p._id}>{p.name}</option>)}</select></div>{loading&&<div className="mt-5 border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">Calculating project controls...</div>}{data&&!loading&&<><div className="mt-5 grid grid-cols-2 border border-slate-200 bg-slate-200 xl:grid-cols-4"><Kpi label="BOQ Estimate" value={money(data.estimatedTotal)} icon={<FileBarChart size={16}/>}/><Kpi label="Actual Cost" value={money(data.actualTotal)} icon={<TrendingUp size={16}/>}/><Kpi label="Budget Remaining" value={money(data.budgetRemaining)} icon={<Wallet size={16}/>} danger={data.budgetRemaining<0}/><Kpi label="Projected Profit" value={money(data.projectedProfit)} icon={<TrendingDown size={16}/>} danger={data.projectedProfit<0}/></div><section className="mt-5 border border-slate-200 bg-white"><div className="border-b border-slate-200 px-5 py-4"><h2 className="text-sm font-bold">Project Performance Control</h2><p className="mt-1 text-xs text-slate-500">Compare work completed with money consumed.</p></div><div className="grid md:grid-cols-3"><Metric label="Physical Progress" value={data.physicalProgress} note="Latest site progress"/><Metric label="Financial Progress" value={data.financialProgress} note="Actual cost / contract"/><Metric label="Budget Utilization" value={data.budgetUtilization} note="Actual cost / budget"/></div><div className={`border-t px-5 py-4 ${data.progressGap>10?"border-red-200 bg-red-50":"border-slate-200 bg-slate-50"}`}><div className="flex gap-3">{data.progressGap>10?<AlertTriangle size={17} className="text-red-600"/>:<Activity size={17} className="text-blue-600"/>}<div><div className="text-sm font-bold">{data.progressStatus}</div><div className="mt-1 text-xs text-slate-500">Progress gap: <b>{data.progressGap>=0?"+":""}{data.progressGap.toFixed(1)} pts</b></div></div></div></div></section><section className="mt-5 overflow-x-auto border border-slate-200 bg-white"><div className="border-b border-slate-200 px-5 py-4"><h2 className="text-sm font-bold">Cost Control Worksheet</h2></div><table className="data-table min-w-[760px]"><thead><tr><th>Cost Category</th><th className="text-right">Estimated</th><th className="text-right">Actual</th><th className="text-right">Variance</th><th className="text-right">Used</th></tr></thead><tbody>{rows.map(([label,e,a])=>{const est=data.estimate[e]||0,act=data.spent[a]||0,v=est-act;return <tr key={label}><td className="font-semibold">{label}</td><td className="text-right tabular-nums">{money(est)}</td><td className="text-right tabular-nums">{money(act)}</td><td className={`text-right font-semibold ${v<0?"text-red-600":"text-emerald-700"}`}>{money(v)}</td><td className="text-right">{est?(act/est*100).toFixed(1):"0.0"}%</td></tr>})}</tbody><tfoot><tr><td className="font-bold">TOTAL</td><td className="text-right font-bold">{money(data.estimatedTotal)}</td><td className="text-right font-bold">{money(data.actualTotal)}</td><td className={`text-right font-bold ${data.variance<0?"text-red-600":"text-emerald-700"}`}>{money(data.variance)}</td><td className="text-right font-bold">{data.estimatedTotal?(data.actualTotal/data.estimatedTotal*100).toFixed(1):"0.0"}%</td></tr></tfoot></table></section><div className="mt-5 grid grid-cols-1 border border-slate-200 bg-slate-200 md:grid-cols-3"><Info label="Contract Amount" value={money(data.project.contractAmount)}/><Info label="Project Budget" value={money(data.project.budget)}/><Info label="Records" value={`${data.boqCount} BOQ items · ${data.entryCount} cost records`}/></div></>}</div></main>}
-function Kpi({label,value,icon,danger=false}:{label:string;value:string;icon:ReactNode;danger?:boolean}){return <div className="bg-white p-5"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">{icon}{label}</div><div className={`mt-2 text-xl font-bold ${danger?"text-red-600":""}`}>{value}</div></div>};function Metric({label,value,note}:{label:string;value:number;note:string}){return <div className="border-b border-slate-200 p-5 md:border-b-0 md:border-r last:md:border-r-0"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</div><div className="mt-2 text-2xl font-bold">{value.toFixed(1)}%</div><div className="mt-3 h-2 bg-slate-100"><div className="h-full bg-blue-600" style={{width:`${Math.min(100,Math.max(0,value))}%`}}/></div><div className="mt-2 text-[11px] text-slate-500">{note}</div></div>};function Info({label,value}:{label:string;value:string}){return <div className="bg-white p-5"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</div><div className="mt-1 font-semibold">{value}</div></div>}
+
+type Project = { _id: string; name: string };
+type Analysis = {
+  project: { name: string; client?: string; location?: string; projectManager?: string; status?: string; budget: number; contractAmount: number };
+  estimate: Record<string, number>;
+  spent: Record<string, number>;
+  estimatedTotal: number;
+  actualTotal: number;
+  variance: number;
+  budgetRemaining: number;
+  projectedProfit: number;
+  boqCount: number;
+  entryCount: number;
+  physicalProgress: number;
+  financialProgress: number;
+  budgetUtilization: number;
+  progressGap: number;
+  progressStatus: string;
+  latestProgressDate?: string | null;
+};
+
+const money = (n: number) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 }).format(n);
+const pct = (n: number) => `${n.toFixed(1)}%`;
+const categories = [
+  { label: "Materials", estimate: "Materials", actual: "Material" },
+  { label: "Labor", estimate: "Labor", actual: "Labor" },
+  { label: "Equipment", estimate: "Equipment", actual: "Equipment" },
+  { label: "Other / Expenses", estimate: "Other", actual: "Expense" },
+] as const;
+
+export default function CostAnalysisPage() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState("");
+  const [data, setData] = useState<Analysis | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadProjects = async () => {
+    try {
+      const response = await fetch("/api/projects");
+      if (!response.ok) throw new Error();
+      const result = await response.json();
+      const list = Array.isArray(result) ? result : [];
+      setProjects(list);
+      if (!projectId && list[0]) setProjectId(list[0]._id);
+    } catch {
+      setError("Could not load projects.");
+    }
+  };
+
+  const loadAnalysis = async () => {
+    if (!projectId) return;
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/cost-analysis?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not calculate project costs.");
+      setData(result);
+    } catch (err) {
+      setData(null);
+      setError(err instanceof Error ? err.message : "Could not calculate project costs.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadProjects(); }, []);
+  useEffect(() => { loadAnalysis(); }, [projectId]);
+
+  const overallUsed = useMemo(() => data && data.estimatedTotal > 0 ? (data.actualTotal / data.estimatedTotal) * 100 : 0, [data]);
+  const profitMargin = useMemo(() => data && data.contractAmount > 0 ? (data.projectedProfit / data.project.contractAmount) * 100 : 0, [data]);
+
+  return (
+    <main className="p-5 md:p-8">
+      <div className="mx-auto max-w-[1500px]">
+        <header className="border-b border-slate-200 pb-5">
+          <div className="text-[10px] font-bold uppercase tracking-[.16em] text-blue-600">Project Controls / Financial</div>
+          <div className="mt-1 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">Cost Analysis</h1>
+              <p className="mt-1 max-w-2xl text-sm text-slate-500">Control estimated cost, actual spending, budget exposure, and project progress from one financial register.</p>
+            </div>
+            <button onClick={loadAnalysis} disabled={!projectId || loading} className="inline-flex items-center justify-center gap-2 border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
+              <RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh analysis
+            </button>
+          </div>
+        </header>
+
+        {error && <div className="mt-5 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+
+        <section className="mt-5 border border-slate-200 bg-white p-4">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Project under control</span>
+            <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="w-full max-w-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium outline-none focus:border-blue-500">
+              <option value="">Select a project</option>
+              {projects.map((project) => <option key={project._id} value={project._id}>{project.name}</option>)}
+            </select>
+          </div>
+        </section>
+
+        {!projectId && !loading && <EmptyState />}
+        {loading && <div className="mt-5 border border-slate-200 bg-white p-14 text-center text-sm text-slate-500">Calculating project controls...</div>}
+
+        {data && !loading && (
+          <>
+            <section className="mt-5 grid grid-cols-1 gap-px border border-slate-200 bg-slate-200 sm:grid-cols-2 xl:grid-cols-4">
+              <Kpi label="Contract Amount" value={money(data.project.contractAmount)} icon={<CircleDollarSign size={16} />} />
+              <Kpi label="Approved Budget" value={money(data.project.budget)} icon={<WalletCards size={16} />} />
+              <Kpi label="Actual Cost" value={money(data.actualTotal)} icon={<BarChart3 size={16} />} />
+              <Kpi label="Projected Profit" value={money(data.projectedProfit)} icon={<dataIcon value={data.projectedProfit} />} danger={data.projectedProfit < 0} />
+            </section>
+
+            <section className="mt-5 grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+              <div className="border border-slate-200 bg-white">
+                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                  <div><h2 className="text-sm font-bold">Cost Position</h2><p className="mt-1 text-xs text-slate-500">Estimate versus actual spending.</p></div>
+                  <div className={`text-sm font-bold ${data.variance < 0 ? "text-red-600" : "text-emerald-700"}`}>{money(data.variance)} variance</div>
+                </div>
+                <div className="grid grid-cols-2 divide-x divide-slate-200">
+                  <Summary label="BOQ Estimate" value={money(data.estimatedTotal)} />
+                  <Summary label="Actual Cost" value={money(data.actualTotal)} />
+                </div>
+                <div className="border-t border-slate-200 px-5 py-4">
+                  <div className="mb-2 flex justify-between text-[11px] font-semibold text-slate-500"><span>Estimate consumed</span><span>{pct(overallUsed)}</span></div>
+                  <div className="h-2 bg-slate-100"><div className={`h-full ${overallUsed > 100 ? "bg-red-500" : "bg-blue-600"}`} style={{ width: `${Math.min(100, Math.max(0, overallUsed))}%` }} /></div>
+                  <div className="mt-2 text-xs text-slate-500">{data.actualTotal > data.estimatedTotal ? "Actual spending has exceeded the BOQ estimate." : `${money(Math.max(0, data.estimatedTotal - data.actualTotal))} remains within the BOQ estimate.`}</div>
+                </div>
+              </div>
+
+              <div className="border border-slate-200 bg-white">
+                <div className="border-b border-slate-200 px-5 py-4"><h2 className="text-sm font-bold">Budget Position</h2><p className="mt-1 text-xs text-slate-500">Approved budget versus actual cost.</p></div>
+                <div className="p-5">
+                  <div className={`text-2xl font-bold ${data.budgetRemaining < 0 ? "text-red-600" : "text-slate-900"}`}>{money(Math.abs(data.budgetRemaining))}</div>
+                  <div className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">{data.budgetRemaining < 0 ? "Budget overrun" : "Budget remaining"}</div>
+                  <div className="mt-5 h-3 bg-slate-100"><div className={`h-full ${data.budgetUtilization > 100 ? "bg-red-500" : "bg-blue-600"}`} style={{ width: `${Math.min(100, Math.max(0, data.budgetUtilization))}%` }} /></div>
+                  <div className="mt-2 flex justify-between text-xs text-slate-500"><span>Utilization</span><b className="text-slate-700">{pct(data.budgetUtilization)}</b></div>
+                </div>
+              </div>
+            </section>
+
+            <section className="mt-5 overflow-x-auto border border-slate-200 bg-white">
+              <div className="flex items-end justify-between border-b border-slate-200 px-5 py-4"><div><h2 className="text-sm font-bold">Cost Control Worksheet</h2><p className="mt-1 text-xs text-slate-500">Category-level estimate, actual cost and remaining allowance.</p></div><span className="text-[11px] text-slate-400">{data.boqCount} BOQ items · {data.entryCount} cost records</span></div>
+              <table className="data-table min-w-[800px]">
+                <thead><tr><th>Cost Category</th><th className="text-right">Estimated</th><th className="text-right">Actual</th><th className="text-right">Variance</th><th className="text-right">Used</th><th className="text-right">Control</th></tr></thead>
+                <tbody>{categories.map((row) => {
+                  const estimated = data.estimate[row.estimate] || 0;
+                  const actual = data.spent[row.actual] || 0;
+                  const variance = estimated - actual;
+                  const used = estimated > 0 ? (actual / estimated) * 100 : 0;
+                  return <tr key={row.label}>
+                    <td className="font-semibold text-slate-800">{row.label}</td>
+                    <td className="text-right tabular-nums">{money(estimated)}</td>
+                    <td className="text-right tabular-nums">{money(actual)}</td>
+                    <td className={`text-right font-semibold tabular-nums ${variance < 0 ? "text-red-600" : "text-emerald-700"}`}>{money(variance)}</td>
+                    <td className="text-right tabular-nums">{pct(used)}</td>
+                    <td className="text-right">{variance < 0 ? <span className="inline-flex items-center gap-1 text-xs font-bold text-red-600"><ArrowUpRight size={13} /> Over</span> : <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700"><CheckCircle2 size={13} /> Within</span>}</td>
+                  </tr>;
+                })}</tbody>
+                <tfoot><tr><td className="font-bold">TOTAL</td><td className="text-right font-bold">{money(data.estimatedTotal)}</td><td className="text-right font-bold">{money(data.actualTotal)}</td><td className={`text-right font-bold ${data.variance < 0 ? "text-red-600" : "text-emerald-700"}`}>{money(data.variance)}</td><td className="text-right font-bold">{pct(overallUsed)}</td><td /></tr></tfoot>
+              </table>
+            </section>
+
+            <section className="mt-5 border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 px-5 py-4"><h2 className="text-sm font-bold">Progress & Financial Control</h2><p className="mt-1 text-xs text-slate-500">Spending should generally track the amount of physical work completed.</p></div>
+              <div className="grid md:grid-cols-3">
+                <ProgressMetric label="Physical Progress" value={data.physicalProgress} note="Latest recorded site progress" />
+                <ProgressMetric label="Financial Progress" value={data.financialProgress} note="Actual cost / contract amount" />
+                <ProgressMetric label="Budget Utilization" value={data.budgetUtilization} note="Actual cost / approved budget" />
+              </div>
+              <div className={`border-t px-5 py-4 ${data.progressGap > 10 ? "border-red-200 bg-red-50" : data.progressGap < -10 ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50"}`}>
+                <div className="flex items-start gap-3">
+                  {data.progressGap > 10 ? <AlertTriangle size={18} className="mt-0.5 text-red-600" /> : data.progressGap < -10 ? <ArrowDownRight size={18} className="mt-0.5 text-amber-600" /> : <CheckCircle2 size={18} className="mt-0.5 text-emerald-600" />}
+                  <div><div className="text-sm font-bold text-slate-800">{data.progressStatus}</div><div className="mt-1 text-xs text-slate-500">Financial progress is <b>{data.progressGap >= 0 ? "+" : ""}{pct(data.progressGap)}</b> relative to physical progress.</div></div>
+                </div>
+              </div>
+            </section>
+
+            <section className="mt-5 grid grid-cols-1 border border-slate-200 bg-slate-200 md:grid-cols-3">
+              <Info label="Client / Location" value={`${data.project.client || "—"}${data.project.location ? ` · ${data.project.location}` : ""}`} />
+              <Info label="Project Engineer / Manager" value={data.project.projectManager || "—"} />
+              <Info label="Projected Margin" value={`${pct(profitMargin)} · ${data.projectedProfit >= 0 ? "positive" : "negative"}`} danger={data.projectedProfit < 0} />
+            </section>
+          </>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function dataIcon({ value }: { value: number }) { return value < 0 ? <ArrowDownRight size={16} /> : <ArrowUpRight size={16} />; }
+function Kpi({ label, value, icon, danger = false }: { label: string; value: string; icon: ReactNode; danger?: boolean }) { return <div className="bg-white p-5"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">{icon}{label}</div><div className={`mt-2 text-xl font-bold tabular-nums ${danger ? "text-red-600" : "text-slate-900"}`}>{value}</div></div>; }
+function Summary({ label, value }: { label: string; value: string }) { return <div className="p-5"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</div><div className="mt-1 text-lg font-bold tabular-nums text-slate-900">{value}</div></div>; }
+function ProgressMetric({ label, value, note }: { label: string; value: number; note: string }) { return <div className="border-b border-slate-200 p-5 md:border-b-0 md:border-r last:md:border-r-0"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</div><div className="mt-2 text-2xl font-bold tabular-nums">{pct(value)}</div><div className="mt-3 h-2 bg-slate-100"><div className={`h-full ${value > 100 ? "bg-red-500" : "bg-blue-600"}`} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} /></div><div className="mt-2 text-[11px] text-slate-500">{note}</div></div>; }
+function Info({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) { return <div className="bg-white p-5"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</div><div className={`mt-1 font-semibold ${danger ? "text-red-600" : "text-slate-800"}`}>{value}</div></div>; }
+function EmptyState() { return <div className="mt-5 border border-dashed border-slate-300 bg-white p-14 text-center"><FileBarChart2 className="mx-auto text-slate-300" size={32} /><div className="mt-3 text-sm font-semibold text-slate-700">Select a project to view cost controls</div><div className="mt-1 text-xs text-slate-500">The analysis will compare BOQ estimate, actual spending, budget and physical progress.</div></div>; }
