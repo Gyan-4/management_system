@@ -23,7 +23,7 @@ A web-based construction cost and project management system for civil engineerin
 - Actual project costs
 - Cost analysis and variance
 - Physical project progress
-- Reports
+- Printable reports
 
 ## Local setup
 
@@ -49,4 +49,13 @@ For Vercel, add `MONGODB_URI` under Project Settings → Environment Variables, 
 
 `Project → BOQ → Actual Costs → Progress → Cost Analysis → Reports`
 
-The system uses Philippine Peso formatting and calculates line totals, actual spending, budget variance, and projected profit from project contract value and actual costs.
+The system uses Philippine Peso formatting and calculates line totals, actual spending, budget variance, cost utilization, and projected profit from project contract value and actual costs.
+
+## Recommended project workflow
+
+1. Create the project and enter contract amount, budget, dates, client, and engineer.
+2. Build the BOQ with quantities, units, unit costs, and cost categories.
+3. Record actual material purchases, labor costs, equipment costs, and other expenses.
+4. Record physical progress periodically using percentage, milestone, and notes.
+5. Review Cost Analysis to identify over-budget categories and remaining budget.
+6. Print the Project Report for client, management, or site documentation.
