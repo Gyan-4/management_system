@@ -2,23 +2,63 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Project from "@/models/Project";
 import BOQItem from "@/models/BOQItem";
-import Expense from "@/models/Expense";
-import LaborEntry from "@/models/LaborEntry";
-import EquipmentUsage from "@/models/EquipmentUsage";
+import CostEntry from "@/models/CostEntry";
 
 export async function GET() {
   try {
     await connectDB();
-    const [projects, boq, expenses, labor, equipment] = await Promise.all([
-      Project.find().lean(), BOQItem.find().lean(), Expense.find().lean(), LaborEntry.find().lean(), EquipmentUsage.find().lean(),
+    const [projects, boq, costs] = await Promise.all([
+      Project.find().lean(),
+      BOQItem.find().lean(),
+      CostEntry.find().lean(),
     ]);
-    const actualByProject = projects.map(p => {
-      const material = boq.filter(x=>String(x.projectId)===String(p._id)&&x.category==="Materials").reduce((s,x)=>s+x.quantity*x.unitCost,0);
-      const laborCost = labor.filter(x=>String(x.projectId)===String(p._id)).reduce((s,x)=>s+x.hours*x.hourlyRate,0);
-      const equipmentCost = equipment.filter(x=>String(x.projectId)===String(p._id)).reduce((s,x)=>s+x.hours*x.ratePerHour,0);
-      const other = expenses.filter(x=>String(x.projectId)===String(p._id)).reduce((s,x)=>s+x.amount,0);
-      return {_id:p._id,name:p.name,client:p.client,status:p.status,budget:p.budget,contractAmount:p.contractAmount,boqTotal:boq.filter(x=>String(x.projectId)===String(p._id)).reduce((s,x)=>s+x.quantity*x.unitCost,0),actualCost:material+laborCost+equipmentCost+other};
+
+    const projectRows = projects.map((project) => {
+      const id = String(project._id);
+      const projectBoq = boq.filter((item) => String(item.projectId) === id);
+      const projectCosts = costs.filter((entry) => String(entry.projectId) === id);
+
+      const boqTotal = projectBoq.reduce(
+        (sum, item) => sum + Number(item.quantity || 0) * Number(item.unitCost || 0),
+        0,
+      );
+      const actualCost = projectCosts.reduce(
+        (sum, entry) => sum + Number(entry.amount || 0),
+        0,
+      );
+
+      const budget = Number(project.budget || 0);
+      const contractAmount = Number(project.contractAmount || 0);
+
+      return {
+        _id: project._id,
+        name: project.name,
+        client: project.client,
+        status: project.status,
+        budget,
+        contractAmount,
+        boqTotal,
+        actualCost,
+        remainingBudget: budget - actualCost,
+        variance: boqTotal - actualCost,
+        projectedProfit: contractAmount - actualCost,
+        budgetUtilization: budget > 0 ? (actualCost / budget) * 100 : 0,
+      };
     });
-    return NextResponse.json({projects:actualByProject, totals:{contract:projects.reduce((s,p)=>s+p.contractAmount,0),budget:projects.reduce((s,p)=>s+p.budget,0),actual:actualByProject.reduce((s,p)=>s+p.actualCost,0),boq:actualByProject.reduce((s,p)=>s+p.boqTotal,0)}});
-  } catch(e) { console.error(e); return NextResponse.json({error:"Failed to load dashboard"},{status:500}); }
+
+    return NextResponse.json({
+      projects: projectRows,
+      totals: {
+        contract: projectRows.reduce((sum, project) => sum + project.contractAmount, 0),
+        budget: projectRows.reduce((sum, project) => sum + project.budget, 0),
+        actual: projectRows.reduce((sum, project) => sum + project.actualCost, 0),
+        boq: projectRows.reduce((sum, project) => sum + project.boqTotal, 0),
+        remainingBudget: projectRows.reduce((sum, project) => sum + project.remainingBudget, 0),
+        projectedProfit: projectRows.reduce((sum, project) => sum + project.projectedProfit, 0),
+      },
+    });
+  } catch (error) {
+    console.error("Dashboard error:", error);
+    return NextResponse.json({ error: "Failed to load dashboard" }, { status: 500 });
+  }
 }
