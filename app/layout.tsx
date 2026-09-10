@@ -12,7 +12,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body>
         <Sidebar />
-        <div className="min-h-screen pt-16 md:pl-64 md:pt-0">{children}</div>
+        <div className="min-h-screen bg-slate-50 pt-14 md:pl-60 md:pt-0">{children}</div>
       </body>
     </html>
   );
