@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Sidebar from "./components/Sidebar";
+import TopBar from "./components/TopBar";
 
 export const metadata: Metadata = {
   title: "ConstructFlow | Construction Management",
@@ -11,8 +11,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
-        <Sidebar />
-        <div className="min-h-screen bg-slate-50 pt-14 md:pl-60 md:pt-0">{children}</div>
+        <TopBar />
+        <main className="min-h-screen bg-slate-50 pt-[112px] md:pt-[116px]">{children}</main>
       </body>
     </html>
   );
