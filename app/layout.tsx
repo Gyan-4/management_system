@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ConstructFlow | Construction Management",
-  description: "Construction cost and project management system"
+  description: "Construction cost and project management system",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
