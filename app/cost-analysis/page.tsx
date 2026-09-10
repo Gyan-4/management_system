@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, BarChart3, CheckCircle2, CircleDollarSign, FileBarChart2, RefreshCw, WalletCards } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -15,10 +14,8 @@ const pct = (n: number) => `${n.toFixed(1)}%`;
 const categories = [{ label: "Materials", estimate: "Materials", actual: "Material" }, { label: "Labor", estimate: "Labor", actual: "Labor" }, { label: "Equipment", estimate: "Equipment", actual: "Equipment" }, { label: "Other / Expenses", estimate: "Other", actual: "Expense" }] as const;
 
 export default function CostAnalysisPage() {
-  const searchParams = useSearchParams();
-  const requestedProjectId = searchParams.get("projectId") || "";
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectId, setProjectId] = useState(requestedProjectId);
+  const [projectId, setProjectId] = useState("");
   const [data, setData] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -27,17 +24,28 @@ export default function CostAnalysisPage() {
     try {
       const response = await fetch("/api/projects", { cache: "no-store" });
       if (!response.ok) throw new Error();
-      const result = await response.json(); const list = Array.isArray(result) ? result : [];
+      const result = await response.json();
+      const list = Array.isArray(result) ? result : [];
       setProjects(list);
-      if (requestedProjectId && list.some((p: Project) => p._id === requestedProjectId)) setProjectId(requestedProjectId); else if (!projectId && list[0]) setProjectId(list[0]._id);
+      const requestedId = new URLSearchParams(window.location.search).get("projectId") || "";
+      if (requestedId && list.some((p: Project) => p._id === requestedId)) setProjectId(requestedId);
+      else if (!projectId && list[0]) setProjectId(list[0]._id);
     } catch { setError("Could not load projects."); }
   }
+
   async function loadAnalysis() {
-    if (!projectId) return; setLoading(true); setError("");
-    try { const response = await fetch(`/api/cost-analysis?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "Could not calculate project costs."); setData(result); }
-    catch (err) { setData(null); setError(err instanceof Error ? err.message : "Could not calculate project costs."); }
-    finally { setLoading(false); }
+    if (!projectId) return;
+    setLoading(true); setError("");
+    try {
+      const response = await fetch(`/api/cost-analysis?projectId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not calculate project costs.");
+      setData(result);
+    } catch (err) {
+      setData(null); setError(err instanceof Error ? err.message : "Could not calculate project costs.");
+    } finally { setLoading(false); }
   }
+
   useEffect(() => { loadProjects(); }, []);
   useEffect(() => { loadAnalysis(); }, [projectId]);
   const overallUsed = useMemo(() => data && data.estimatedTotal > 0 ? (data.actualTotal / data.estimatedTotal) * 100 : 0, [data]);
@@ -51,7 +59,7 @@ export default function CostAnalysisPage() {
     {data && !loading && <>
       <section className="mt-5 grid grid-cols-1 gap-px border border-slate-200 bg-slate-200 sm:grid-cols-2 xl:grid-cols-4"><Kpi label="Contract Amount" value={money(data.project.contractAmount)} icon={<CircleDollarSign size={16}/>}/><Kpi label="Approved Budget" value={money(data.project.budget)} icon={<WalletCards size={16}/>}/><Kpi label="Actual Cost" value={money(data.actualTotal)} icon={<BarChart3 size={16}/>}/><Kpi label="Projected Profit" value={money(data.projectedProfit)} icon={data.projectedProfit < 0 ? <ArrowDownRight size={16}/> : <ArrowUpRight size={16}/>} danger={data.projectedProfit < 0}/></section>
       <section className="mt-5 grid gap-5 lg:grid-cols-[1.5fr_1fr]"><div className="border border-slate-200 bg-white"><div className="flex items-center justify-between border-b border-slate-200 px-5 py-4"><div><h2 className="text-sm font-bold">Cost Position</h2><p className="mt-1 text-xs text-slate-500">Estimate versus actual spending.</p></div><div className={`text-sm font-bold ${data.variance < 0 ? "text-red-600" : "text-emerald-700"}`}>{money(data.variance)} variance</div></div><div className="grid grid-cols-2 divide-x divide-slate-200"><Summary label="BOQ Estimate" value={money(data.estimatedTotal)}/><Summary label="Actual Cost" value={money(data.actualTotal)}/></div><div className="border-t border-slate-200 px-5 py-4"><div className="mb-2 flex justify-between text-[11px] font-semibold text-slate-500"><span>Estimate consumed</span><span>{pct(overallUsed)}</span></div><div className="h-2 bg-slate-100"><div className={`h-full ${overallUsed > 100 ? "bg-red-500" : "bg-blue-600"}`} style={{width:`${Math.min(100,Math.max(0,overallUsed))}%`}}/></div><div className="mt-2 text-xs text-slate-500">{data.actualTotal > data.estimatedTotal ? "Actual spending has exceeded the BOQ estimate." : `${money(Math.max(0,data.estimatedTotal-data.actualTotal))} remains within the BOQ estimate.`}</div></div></div><div className="border border-slate-200 bg-white"><div className="border-b border-slate-200 px-5 py-4"><h2 className="text-sm font-bold">Budget Position</h2><p className="mt-1 text-xs text-slate-500">Approved budget versus actual cost.</p></div><div className="p-5"><div className={`text-2xl font-bold ${data.budgetRemaining < 0 ? "text-red-600" : "text-slate-900"}`}>{money(Math.abs(data.budgetRemaining))}</div><div className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">{data.budgetRemaining < 0 ? "Budget overrun" : "Budget remaining"}</div><div className="mt-5 h-3 bg-slate-100"><div className={`h-full ${data.budgetUtilization > 100 ? "bg-red-500" : "bg-blue-600"}`} style={{width:`${Math.min(100,Math.max(0,data.budgetUtilization))}%`}}/></div><div className="mt-2 flex justify-between text-xs text-slate-500"><span>Utilization</span><b className="text-slate-700">{pct(data.budgetUtilization)}</b></div></div></div></section>
-      <section className="mt-5 overflow-x-auto border border-slate-200 bg-white"><div className="flex items-end justify-between border-b border-slate-200 px-5 py-4"><div><h2 className="text-sm font-bold">Cost Control Worksheet</h2><p className="mt-1 text-xs text-slate-500">Category-level estimate, actual cost and remaining allowance.</p></div><span className="text-[11px] text-slate-400">{data.boqCount} BOQ items · {data.entryCount} cost records</span></div><table className="data-table min-w-[800px]"><thead><tr><th>Cost Category</th><th className="text-right">Estimated</th><th className="text-right">Actual</th><th className="text-right">Variance</th><th className="text-right">Used</th><th className="text-right">Control</th></tr></thead><tbody>{categories.map(row => {const estimated=data.estimate[row.estimate]||0;const actual=data.spent[row.actual]||0;const variance=estimated-actual;const used=estimated>0?(actual/estimated)*100:0;return <tr key={row.label}><td className="font-semibold text-slate-800">{row.label}</td><td className="text-right tabular-nums">{money(estimated)}</td><td className="text-right tabular-nums">{money(actual)}</td><td className={`text-right font-semibold tabular-nums ${variance<0?"text-red-600":"text-emerald-700"}`}>{money(variance)}</td><td className="text-right tabular-nums">{pct(used)}</td><td className="text-right">{variance<0?<span className="inline-flex items-center gap-1 text-xs font-bold text-red-600"><ArrowUpRight size={13}/> Over</span>:<span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700"><CheckCircle2 size={13}/> Within</span>}</td></tr>})}</tbody><tfoot><tr><td className="font-bold">TOTAL</td><td className="text-right font-bold">{money(data.estimatedTotal)}</td><td className="text-right font-bold">{money(data.actualTotal)}</td><td className={`text-right font-bold ${data.variance<0?"text-red-600":"text-emerald-700"}`}>{money(data.variance)}</td><td className="text-right font-bold">{pct(overallUsed)}</td><td/></tr></tfoot></table></section>
+      <section className="mt-5 overflow-x-auto border border-slate-200 bg-white"><div className="flex items-end justify-between border-b border-slate-200 px-5 py-4"><div><h2 className="text-sm font-bold">Cost Control Worksheet</h2><p className="mt-1 text-xs text-slate-500">Category-level estimate, actual cost and remaining allowance.</p></div><span className="text-[11px] text-slate-400">{data.boqCount} BOQ items · {data.entryCount} cost records</span></div><table className="data-table min-w-[800px]"><thead><tr><th>Cost Category</th><th className="text-right">Estimated</th><th className="text-right">Actual</th><th className="text-right">Variance</th><th className="text-right">Used</th><th className="text-right">Control</th></tr></thead><tbody>{categories.map(row => {const estimated=data.estimate[row.estimate]||0;const actual=data.spent[row.actual]||0;const variance=estimated-actual;const used=estimated>0?(actual/estimated)*100:0;return <tr key={row.label}><td className="font-semibold text-slate-800">{row.label}</td><td className="text-right tabular-nums">{money(estimated)}</td><td className="text-right tabular-nums">{money(actual)}</td><td className={`text-right font-semibold tabular-nums ${variance<0?"text-red-600":"text-emerald-700"}`}>{money(variance)}</td><td className="text-right tabular-nums">{pct(used)}</td><td className="text-right">{variance<0?<span className="inline-flex items-center gap-1 text-xs font-bold text-red-600"><ArrowUpRight size={13}/> Over</span>:<span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700"><CheckCircle2 size={13}/> Within</span>}</td></tr>})}</tbody><tfoot><tr><td className="font-bold">TOTAL</td><td className="text-right font-bold">{money(data.estimatedTotal)}</td><td className="text-right font-bold">{money(data.actualTotal)}</td><td className={`text-right font-bold ${data.variance<0?"text-red-600":"text-emerald-700"}`}>{money(data.variance)}</td><td className="text-right font-bold">{pct(overallUsed)}</td><td/></tr></table></section>
       <section className="mt-5 border border-slate-200 bg-white"><div className="border-b border-slate-200 px-5 py-4"><h2 className="text-sm font-bold">Progress & Financial Control</h2><p className="mt-1 text-xs text-slate-500">Spending should generally track the amount of physical work completed.</p></div><div className="grid md:grid-cols-3"><ProgressMetric label="Physical Progress" value={data.physicalProgress} note="Latest recorded site progress"/><ProgressMetric label="Financial Progress" value={data.financialProgress} note="Actual cost / contract amount"/><ProgressMetric label="Budget Utilization" value={data.budgetUtilization} note="Actual cost / approved budget"/></div><div className={`border-t px-5 py-4 ${data.progressGap>10?"border-red-200 bg-red-50":data.progressGap<-10?"border-amber-200 bg-amber-50":"border-slate-200 bg-slate-50"}`}><div className="flex items-start gap-3">{data.progressGap>10?<AlertTriangle size={18} className="mt-0.5 text-red-600"/>:data.progressGap<-10?<ArrowDownRight size={18} className="mt-0.5 text-amber-600"/>:<CheckCircle2 size={18} className="mt-0.5 text-emerald-600"/>}<div><div className="text-sm font-bold text-slate-800">{data.progressStatus}</div><div className="mt-1 text-xs text-slate-500">Financial progress is <b>{data.progressGap>=0?"+":""}{pct(data.progressGap)}</b> relative to physical progress.</div></div></div></div></section>
       <section className="mt-5 grid grid-cols-1 border border-slate-200 bg-slate-200 md:grid-cols-3"><Info label="Client / Location" value={`${data.project.client||"—"}${data.project.location?` · ${data.project.location}`:""}`}/><Info label="Project Engineer / Manager" value={data.project.projectManager||"—"}/><Info label="Projected Margin" value={`${pct(profitMargin)} · ${data.projectedProfit>=0?"positive":"negative"}`} danger={data.projectedProfit<0}/></section>
     </>}
