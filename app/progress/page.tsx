@@ -1,183 +1,28 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { Activity, AlertTriangle, Plus, Trash2, X } from "lucide-react";
 
 type Project = { _id: string; name: string; contractAmount: number };
 type RecordItem = { _id: string; progressDate: string; percentage: number; milestone: string; notes: string };
 type Analysis = { actualTotal: number; physicalProgress: number; financialProgress: number; budgetUtilization: number; progressGap: number; progressStatus: string };
-
 const money = (n: number) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(n);
 
 export default function ProgressPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectId, setProjectId] = useState("");
-  const [records, setRecords] = useState<RecordItem[]>([]);
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ progressDate: new Date().toISOString().slice(0, 10), percentage: "0", milestone: "", notes: "" });
-
-  useEffect(() => {
-    fetch("/api/projects")
-      .then(r => r.json())
-      .then(data => {
-        const list = Array.isArray(data) ? data : [];
-        setProjects(list);
-        if (list[0]) setProjectId(list[0]._id);
-      });
-  }, []);
-
-  useEffect(() => {
-    if (!projectId) return;
-    setLoading(true);
-    Promise.all([
-      fetch(`/api/progress?projectId=${projectId}`).then(r => r.json()),
-      fetch(`/api/cost-analysis?projectId=${projectId}`).then(r => r.json()),
-    ])
-      .then(([recordsData, analysisData]) => {
-        setRecords(Array.isArray(recordsData) ? recordsData : []);
-        setAnalysis(analysisData?.error ? null : analysisData);
-      })
-      .finally(() => setLoading(false));
-  }, [projectId]);
-
-  async function add(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!projectId) return;
-    setSaving(true);
-    try {
-      const response = await fetch("/api/progress", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, projectId }),
-      });
-      if (!response.ok) return;
-      const item = await response.json();
-      setRecords(previous => [item, ...previous]);
-      setAnalysis(previous => previous ? {
-        ...previous,
-        physicalProgress: item.percentage,
-        progressGap: previous.financialProgress - item.percentage,
-        progressStatus: previous.financialProgress - item.percentage > 10
-          ? "Spending is ahead of physical progress"
-          : previous.financialProgress - item.percentage < -10
-            ? "Physical progress is ahead of spending"
-            : "Progress and spending are aligned",
-      } : previous);
-      setOpen(false);
-      setForm({ progressDate: new Date().toISOString().slice(0, 10), percentage: String(item.percentage), milestone: "", notes: "" });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function del(id: string) {
-    const response = await fetch(`/api/progress/${id}`, { method: "DELETE" });
-    if (response.ok) setRecords(previous => previous.filter(item => item._id !== id));
-  }
-
-  return (
-    <main className="min-h-screen p-5 md:p-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600">Monitoring</div>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight">Project Progress</h1>
-            <p className="mt-1 text-sm text-slate-500">Track physical work progress against actual project spending.</p>
-          </div>
-          <button type="button" disabled={!projectId} onClick={() => setOpen(true)} className="flex items-center justify-center gap-2 bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40">
-            <Plus size={17} /> Record Progress
-          </button>
-        </div>
-
-        <div className="card mb-5 p-4">
-          <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Project</label>
-          <select value={projectId} onChange={e => setProjectId(e.target.value)} className="mt-2 w-full border border-slate-300 bg-white px-3 py-2.5 text-sm sm:max-w-xl">
-            <option value="">Select a project</option>
-            {projects.map(project => <option key={project._id} value={project._id}>{project.name}</option>)}
-          </select>
-        </div>
-
-        {loading && <div className="card p-10 text-center text-sm text-slate-500">Loading project control data...</div>}
-
-        {!loading && analysis && (
-          <>
-            <div className="grid gap-px overflow-hidden border border-slate-200 bg-slate-200 md:grid-cols-2 xl:grid-cols-4">
-              <Metric label="Physical Progress" value={`${analysis.physicalProgress.toFixed(1)}%`} />
-              <Metric label="Financial Progress" value={`${analysis.financialProgress.toFixed(1)}%`} />
-              <Metric label="Budget Utilization" value={`${analysis.budgetUtilization.toFixed(1)}%`} />
-              <Metric label="Actual Cost" value={money(analysis.actualTotal)} />
-            </div>
-
-            <div className={`mt-5 border p-5 ${analysis.progressGap > 10 ? "border-red-200 bg-red-50" : "border-slate-200 bg-white"}`}>
-              <div className="flex items-start gap-3">
-                {analysis.progressGap > 10 ? <AlertTriangle className="mt-0.5 text-red-600" size={19} /> : <Activity className="mt-0.5 text-blue-600" size={19} />}
-                <div>
-                  <div className="text-sm font-bold">{analysis.progressStatus}</div>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Financial progress is {analysis.progressGap >= 0 ? `${analysis.progressGap.toFixed(1)} points ahead of` : `${Math.abs(analysis.progressGap).toFixed(1)} points behind`} physical progress.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {!loading && (
-          <div className="card mt-5 overflow-x-auto">
-            <div className="border-b border-slate-200 px-5 py-4">
-              <h2 className="text-sm font-bold">Progress Records</h2>
-              <p className="mt-1 text-xs text-slate-500">Historical physical progress entries for the selected project.</p>
-            </div>
-            {records.length > 0 ? (
-              <table className="data-table min-w-[750px] text-sm">
-                <thead><tr><th>Date</th><th>Progress</th><th>Milestone</th><th>Notes</th><th /></tr></thead>
-                <tbody>
-                  {records.map(item => (
-                    <tr key={item._id}>
-                      <td>{new Date(item.progressDate).toLocaleDateString("en-PH")}</td>
-                      <td className="font-bold">{item.percentage}%</td>
-                      <td>{item.milestone || "—"}</td>
-                      <td>{item.notes || "—"}</td>
-                      <td><button type="button" onClick={() => del(item._id)} className="p-1.5 text-slate-400 hover:text-red-600" aria-label="Delete progress record"><Trash2 size={16} /></button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="p-12 text-center text-sm text-slate-500">No progress records yet.</div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <form onSubmit={add} className="w-full max-w-lg bg-white p-6 shadow-xl">
-            <div className="flex items-center justify-between">
-              <div><h2 className="text-lg font-bold">Record Project Progress</h2><p className="mt-1 text-xs text-slate-500">Enter the latest physical work completion.</p></div>
-              <button type="button" onClick={() => setOpen(false)} className="p-2 text-slate-400 hover:text-slate-700" aria-label="Close"><X size={19} /></button>
-            </div>
-            <div className="mt-5 space-y-4">
-              <Field label="Date" type="date" value={form.progressDate} onChange={value => setForm({ ...form, progressDate: value })} />
-              <Field label="Physical Progress (%)" type="number" value={form.percentage} onChange={value => setForm({ ...form, percentage: value })} />
-              <Field label="Milestone" value={form.milestone} onChange={value => setForm({ ...form, milestone: value })} />
-              <label className="block"><span className="text-sm font-medium">Notes</span><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} className="mt-1.5 w-full border border-slate-300 px-3 py-2.5 text-sm" /></label>
-            </div>
-            <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setOpen(false)} className="border border-slate-300 px-4 py-2.5 text-sm font-semibold">Cancel</button><button disabled={saving} className="bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? "Saving..." : "Save Progress"}</button></div>
-          </form>
-        </div>
-      )}
-    </main>
-  );
+  const [projects, setProjects] = useState<Project[]>([]); const [projectId, setProjectId] = useState(""); const [records, setRecords] = useState<RecordItem[]>([]); const [analysis, setAnalysis] = useState<Analysis | null>(null); const [open, setOpen] = useState(false); const [loading, setLoading] = useState(false); const [error, setError] = useState(""); const [form, setForm] = useState({ progressDate: new Date().toISOString().slice(0, 10), percentage: "0", milestone: "", notes: "" });
+  useEffect(() => { fetch("/api/projects").then(r => r.json()).then(data => { const list = Array.isArray(data) ? data : []; setProjects(list); if (list[0]) setProjectId(list[0]._id); }).catch(() => setError("Could not load projects.")); }, []);
+  useEffect(() => { if (!projectId) return; setLoading(true); Promise.all([fetch(`/api/progress?projectId=${projectId}`).then(r=>r.json()), fetch(`/api/cost-analysis?projectId=${projectId}`).then(r=>r.json())]).then(([r,a])=>{setRecords(Array.isArray(r)?r:[]);setAnalysis(a?.error?null:a);}).catch(()=>setError("Could not load project progress.")).finally(()=>setLoading(false)); }, [projectId]);
+  async function add(e: FormEvent<HTMLFormElement>) { e.preventDefault(); if (!projectId) return; const response=await fetch("/api/progress",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...form,projectId})}); if(!response.ok){setError("Could not save progress.");return;} const item=await response.json(); setRecords(p=>[item,...p]); setAnalysis(p=>p?{...p,physicalProgress:item.percentage,progressGap:p.financialProgress-item.percentage,progressStatus:p.financialProgress-item.percentage>10?"Spending is ahead of physical progress":p.financialProgress-item.percentage<-10?"Physical progress is ahead of spending":"Progress and spending are aligned"}:p); setOpen(false); }
+  async function del(id:string){if(!window.confirm("Delete this progress record?"))return;const r=await fetch(`/api/progress/${id}`,{method:"DELETE"});if(r.ok)setRecords(p=>p.filter(x=>x._id!==id));}
+  return <main className="min-h-screen p-5 md:p-8"><div className="mx-auto max-w-[1500px]">
+    <div className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between"><div><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">Monitoring / Site Control</div><h1 className="mt-1 text-2xl font-bold tracking-tight">Project Progress</h1><p className="mt-1 text-sm text-slate-500">Track physical work completion against project spending.</p></div><button disabled={!projectId} onClick={()=>setOpen(true)} className="flex items-center justify-center gap-2 bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-40"><Plus size={16}/> Record Progress</button></div>
+    {error&&<div className="mb-5 border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+    <div className="mb-5 grid gap-px overflow-hidden border border-slate-200 bg-slate-200 md:grid-cols-[1fr_260px]"><div className="bg-white p-4"><label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Project</label><select value={projectId} onChange={e=>setProjectId(e.target.value)} className="mt-1.5 w-full border-0 bg-white p-0 text-sm font-bold outline-none"><option value="">Select a project</option>{projects.map(p=><option key={p._id} value={p._id}>{p.name}</option>)}</select></div><div className="bg-white p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Latest Status</div><div className="mt-1 text-sm font-bold">{analysis?.progressStatus||"Awaiting project data"}</div></div></div>
+    {loading?<div className="border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">Loading project control data...</div>:analysis&&<><div className="grid gap-px overflow-hidden border border-slate-200 bg-slate-200 md:grid-cols-2 xl:grid-cols-4"><Metric label="Physical Progress" value={`${analysis.physicalProgress.toFixed(1)}%`}/><Metric label="Financial Progress" value={`${analysis.financialProgress.toFixed(1)}%`}/><Metric label="Budget Utilization" value={`${analysis.budgetUtilization.toFixed(1)}%`}/><Metric label="Actual Cost" value={money(analysis.actualTotal)}/></div><div className={`mt-5 border p-5 ${analysis.progressGap>10?"border-red-200 bg-red-50":"border-slate-200 bg-white"}`}><div className="flex items-start gap-3">{analysis.progressGap>10?<AlertTriangle className="mt-0.5 text-red-600" size={19}/>:<Activity className="mt-0.5 text-blue-600" size={19}/>}<div><div className="text-sm font-bold">{analysis.progressStatus}</div><p className="mt-1 text-xs text-slate-500">Financial progress is {analysis.progressGap>=0?`${analysis.progressGap.toFixed(1)} points ahead of`:`${Math.abs(analysis.progressGap).toFixed(1)} points behind`} physical progress.</p></div></div></div></>}
+    <div className="mt-5 border border-slate-200 bg-white overflow-x-auto"><div className="border-b border-slate-200 px-5 py-4"><h2 className="text-sm font-bold">Progress Register</h2><p className="mt-1 text-xs text-slate-500">Historical physical progress records.</p></div>{records.length?<table className="data-table min-w-[750px] text-sm"><thead><tr><th>Date</th><th className="text-right">Progress</th><th>Milestone</th><th>Notes</th><th/></tr></thead><tbody>{records.map(x=><tr key={x._id}><td>{new Date(x.progressDate).toLocaleDateString("en-PH")}</td><td className="text-right font-bold">{x.percentage.toFixed(1)}%</td><td className="font-semibold">{x.milestone||"—"}</td><td>{x.notes||"—"}</td><td><button onClick={()=>del(x._id)} className="p-1.5 text-slate-400 hover:text-red-600"><Trash2 size={15}/></button></td></tr>)}</tbody></table>:<div className="p-12 text-center text-sm text-slate-500">No progress records yet.</div>}</div>
+    {open&&<div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 p-4"><form onSubmit={add} className="w-full max-w-lg border border-slate-200 bg-white shadow-2xl"><div className="border-b border-slate-200 px-6 py-5"><div className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Site Monitoring</div><h2 className="mt-1 text-xl font-bold">Record Physical Progress</h2></div><div className="space-y-4 p-6"><Field label="Progress Date" type="date" value={form.progressDate} onChange={v=>setForm({...form,progressDate:v})}/><Field label="Physical Progress (%)" type="number" value={form.percentage} onChange={v=>setForm({...form,percentage:v})}/><Field label="Milestone" value={form.milestone} onChange={v=>setForm({...form,milestone:v})}/><label><span className="text-sm font-semibold">Notes</span><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={3} className="mt-1.5 w-full border border-slate-300 px-3 py-2.5 text-sm"/></label></div><div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4"><button type="button" onClick={()=>setOpen(false)} className="flex items-center gap-2 border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold"><X size={15}/>Cancel</button><button className="bg-blue-600 px-5 py-2.5 text-sm font-bold text-white">Save Progress</button></div></form></div>}
+  </div></main>;
 }
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="bg-white p-5"><div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</div><div className="mt-2 text-xl font-bold tabular-nums">{value}</div></div>;
-}
-
-function Field({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
-  return <label className="block"><span className="text-sm font-medium">{label}</span><input required type={type} min={type === "number" ? 0 : undefined} max={type === "number" ? 100 : undefined} step={type === "number" ? 0.1 : undefined} value={value} onChange={e => onChange(e.target.value)} className="mt-1.5 w-full border border-slate-300 px-3 py-2.5 text-sm" /></label>;
-}
+function Metric({label,value}:{label:string;value:string}){return <div className="bg-white p-5"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</div><div className="mt-2 text-xl font-bold tabular-nums">{value}</div></div>}
+function Field({label,value,onChange,type="text"}:{label:string;value:string;onChange:(v:string)=>void;type?:string}){return <label className="block"><span className="text-sm font-semibold text-slate-700">{label}</span><input required type={type} min={type==="number"?0:undefined} max={type==="number"?100:undefined} step={type==="number"?0.1:undefined} value={value} onChange={e=>onChange(e.target.value)} className="mt-1.5 w-full border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"/></label>}
