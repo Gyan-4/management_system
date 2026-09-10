@@ -1,16 +1,29 @@
 @import "tailwindcss";
 
-:root { --background:#f6f7f9; --foreground:#172033; --sidebar:#172033; --muted:#667085; --border:#e5e7eb; --card:#fff; }
-* { box-sizing:border-box; }
-html,body { margin:0; min-height:100%; }
-body { background:var(--background); color:var(--foreground); font-family:Arial,Helvetica,sans-serif; }
-button,input,select,textarea { font:inherit; }
-button { cursor:pointer; }
-.card { background:var(--card); border:1px solid var(--border); border-radius:14px; }
-.sidebar { background:var(--sidebar); }
-.stat-number { letter-spacing:-.03em; }
+:root {
+  --background: #f4f6f8;
+  --foreground: #172033;
+  --border: #dfe4ea;
+  --card: #ffffff;
+  --muted: #64748b;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: var(--background); color: var(--foreground); font-family: Arial, Helvetica, sans-serif; }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
+.stat-number { letter-spacing: -.03em; }
+
+/* Engineering-style data presentation */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th { background: #f8fafc; color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-align: left; text-transform: uppercase; }
+.data-table th, .data-table td { border-bottom: 1px solid #e8edf2; padding: 11px 14px; }
+.data-table tbody tr:hover { background: #f8fafc; }
+
 @media print {
-  body { background:#fff; }
-  .print\:hidden { display:none !important; }
+  body { background: #fff; }
+  .print\\:hidden { display: none !important; }
   @page { margin: 14mm; }
 }
