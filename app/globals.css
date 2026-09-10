@@ -24,6 +24,5 @@ button { cursor: pointer; }
 
 @media print {
   body { background: #fff; }
-  .print\\:hidden { display: none !important; }
   @page { margin: 14mm; }
 }
