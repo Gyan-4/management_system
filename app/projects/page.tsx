@@ -8,6 +8,15 @@ type Project = { _id: string; name: string; client: string; location?: string; c
 const money = (n: number) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(n);
 const emptyForm = { name: "", client: "", location: "", contractAmount: "", budget: "", startDate: "", endDate: "", status: "Planning", projectManager: "", description: "" };
 
+async function responseError(response: Response, fallback: string) {
+  try {
+    const data = await response.json();
+    return data?.error || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [open, setOpen] = useState(false);
@@ -21,11 +30,11 @@ export default function ProjectsPage() {
     setLoading(true);
     try {
       const r = await fetch("/api/projects", { cache: "no-store" });
-      if (!r.ok) throw new Error();
+      if (!r.ok) throw new Error(await responseError(r, "Could not load projects."));
       setProjects(await r.json());
       setError("");
-    } catch {
-      setError("Could not load projects. Check your MongoDB connection.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load projects. Check your MongoDB connection.");
     } finally { setLoading(false); }
   }
 
@@ -43,20 +52,26 @@ export default function ProjectsPage() {
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError("");
+    if (form.endDate < form.startDate) {
+      setError("End date cannot be earlier than start date."); setSaving(false); return;
+    }
     try {
       const r = await fetch(editing ? `/api/projects/${editing._id}` : "/api/projects", { method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-      if (!r.ok) throw new Error();
+      if (!r.ok) throw new Error(await responseError(r, editing ? "Could not update the project." : "Could not create the project."));
       setForm(emptyForm); setOpen(false); setEditing(null); await loadProjects();
-    } catch { setError(editing ? "Could not update the project." : "Could not create the project. Please check all fields."); }
-    finally { setSaving(false); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (editing ? "Could not update the project." : "Could not create the project."));
+    } finally { setSaving(false); }
   }
 
   async function removeProject(p: Project) {
-    if (!window.confirm(`Delete project “${p.name}”? This does not delete its BOQ or cost records.`)) return;
+    if (!window.confirm(`Delete project “${p.name}”? This will also delete its BOQ, cost records, and progress records.`)) return;
     setError("");
-    const r = await fetch(`/api/projects/${p._id}`, { method: "DELETE" });
-    if (!r.ok) { setError("Could not delete the project."); return; }
-    await loadProjects();
+    try {
+      const r = await fetch(`/api/projects/${p._id}`, { method: "DELETE" });
+      if (!r.ok) { setError(await responseError(r, "Could not delete the project.")); return; }
+      await loadProjects();
+    } catch { setError("Could not delete the project. Check your connection and try again."); }
   }
 
   const totals = useMemo(() => ({ contract: projects.reduce((s,p)=>s+p.contractAmount,0), budget: projects.reduce((s,p)=>s+p.budget,0), active: projects.filter(p=>p.status === "Active").length }), [projects]);
