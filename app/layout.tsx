@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import TopBar from "./components/TopBar";
+import { ProjectProvider } from "./components/ProjectContext";
 
 export const metadata: Metadata = {
   title: "ConstructFlow | Construction Management",
@@ -11,8 +12,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
-        <TopBar />
-        <main className="min-h-screen bg-slate-50 pt-[112px] md:pt-[116px]">{children}</main>
+        <ProjectProvider>
+          <TopBar />
+          <main className="min-h-screen bg-slate-50 pt-[112px] md:pt-[116px]">{children}</main>
+        </ProjectProvider>
       </body>
     </html>
   );
