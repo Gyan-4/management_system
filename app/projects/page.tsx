@@ -43,8 +43,8 @@ export default function ProjectsPage() {
   async function submit(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError("");
     const contract = Number(form.contractAmount), budget = Number(form.budget);
-    if (contract < 0 || budget < 0) { setError("Contract amount and budget cannot be negative."); setSaving(false); return; }
-    if (form.endDate < form.startDate) { setError("End date cannot be earlier than start date."); setSaving(false); return; }
+    if (!form.name.trim() || !form.client.trim()) { setError("Project name and client are required."); setSaving(false); return; }\n    if (!Number.isFinite(contract) || !Number.isFinite(budget) || contract < 0 || budget < 0) { setError("Contract amount and budget cannot be negative."); setSaving(false); return; }
+    if (!form.startDate || !form.endDate) { setError("Start and end dates are required."); setSaving(false); return; }\n    if (form.endDate < form.startDate) { setError("End date cannot be earlier than start date."); setSaving(false); return; }
     if (budget > contract) { setError("Estimated budget should not exceed the contract amount."); setSaving(false); return; }
     try {
       const r = await fetch(editing ? `/api/projects/${editing._id}` : "/api/projects", { method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, contractAmount: contract, budget }) });
