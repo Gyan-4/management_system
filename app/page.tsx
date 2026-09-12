@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowUpRight, ClipboardList, DollarSign, Plus, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, ClipboardList, DollarSign, Plus, Wallet, RefreshCw } from "lucide-react";
 
 type Project = { _id: string; name: string; client?: string; budget: number; contractAmount: number; status: string; actualCost: number; remainingBudget: number; budgetUtilization: number; projectedProfit: number };
 type Dashboard = { projects: Project[]; totals: { contract: number; budget: number; actual: number; boq: number; remainingBudget: number; projectedProfit: number } };
@@ -11,7 +11,7 @@ const money = (n: number) => new Intl.NumberFormat("en-PH", { style: "currency",
 
 export default function Home() {
   const [data, setData] = useState<Dashboard | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState("");\n  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetch("/api/dashboard", { cache: "no-store" })
@@ -28,7 +28,7 @@ export default function Home() {
     <header className="border-b border-slate-200 bg-white px-5 py-5 md:px-8">
       <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
         <div><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">Project Control</div><h1 className="mt-1 text-2xl font-bold tracking-tight">Dashboard</h1><p className="mt-1 text-sm text-slate-500">Construction cost, budget and project performance overview.</p></div>
-        <Link href="/projects" className="flex shrink-0 items-center gap-2 bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700"><Plus size={16}/> New Project</Link>
+        <div className="flex shrink-0 gap-2"><button onClick={loadDashboard} disabled={refreshing} className="flex items-center gap-2 border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold disabled:opacity-50"><RefreshCw size={15} className={refreshing?"animate-spin":""}/> Refresh</button><Link href="/projects" className="flex items-center gap-2 bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700"><Plus size={16}/> New Project</Link></div>
       </div>
     </header>
     <div className="mx-auto max-w-[1500px] space-y-6 p-5 md:p-8">
