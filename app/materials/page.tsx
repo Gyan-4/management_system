@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, Package } from "lucide-react";
 import CostLedger from "@/app/components/CostLedger";
+import { useProject } from "@/app/components/ProjectContext";
 
-type Project={_id:string;name:string};
+
 type Entry={_id:string;date:string;description:string;quantity:number;unit:string;unitCost:number;amount:number;supplierOrEmployee?:string};
 
 const money=(n:number)=>new Intl.NumberFormat("en-PH",{style:"currency",currency:"PHP",maximumFractionDigits:2}).format(n);
