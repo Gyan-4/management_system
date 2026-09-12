@@ -3,6 +3,7 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
+import { useProject } from "./ProjectContext";
 
 export type CostCategory = "Material" | "Labor" | "Equipment" | "Expense";
 type Project = { _id: string; name: string };
