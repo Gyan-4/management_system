@@ -5,6 +5,7 @@ import Project from "@/models/Project";
 import BOQItem from "@/models/BOQItem";
 import CostEntry from "@/models/CostEntry";
 import ProjectProgress from "@/models/ProjectProgress";
+import WorkSection from "@/models/WorkSection";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -73,6 +74,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
       BOQItem.deleteMany({ projectId: id }),
       CostEntry.deleteMany({ projectId: id }),
       ProjectProgress.deleteMany({ projectId: id }),
+      WorkSection.deleteMany({ projectId: id }),
     ]);
 
     return NextResponse.json({ success: true });
