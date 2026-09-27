@@ -63,6 +63,13 @@ export async function GET(request: NextRequest) {
 
     const estimatedTotal = Object.values(estimate).reduce((a, b) => a + b, 0);
     const costEntryActualTotal = Object.values(spent).reduce((a, b) => a + b, 0);
+    if (sectionActualTotal > 0) {
+      Object.keys(spent).forEach((key) => { spent[key as keyof typeof spent] = 0; });
+      sections.forEach((section) => section.items.forEach((item) => {
+        const category = item.category === "Material" ? "Material" : item.category === "Other" ? "Expense" : item.category;
+        spent[category as keyof typeof spent] += Number(item.actualCost || 0);
+      }));
+    }
     const actualTotal = sectionActualTotal > 0 ? sectionActualTotal : costEntryActualTotal;
     const physicalProgress = progress?.percentage ?? 0;
     const financialProgress = project.contractAmount > 0 ? (actualTotal / project.contractAmount) * 100 : 0;
