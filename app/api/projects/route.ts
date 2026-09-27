@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Project from "@/models/Project";
+import WorkSection from "@/models/WorkSection";
 
 export async function GET() {
   try {
@@ -29,6 +30,25 @@ export async function POST(request: NextRequest) {
       projectManager: body.projectManager,
       description: body.description,
     });
+    const defaultSections = [
+      "Foundation",
+      "Structural Frame",
+      "Walls",
+      "Roof",
+      "Doors & Windows",
+      "Electrical",
+      "Plumbing",
+      "Finishes",
+    ];
+    await WorkSection.insertMany(defaultSections.map((name, index) => ({
+      projectId: project._id,
+      name,
+      order: index,
+      status: "Not Started",
+      progress: 0,
+      items: [],
+    })));
+
     return NextResponse.json(project, { status: 201 });
   } catch (error) {
     console.error(error);
