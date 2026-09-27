@@ -72,7 +72,11 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
   const [itemForm, setItemForm] = useState<Item>(emptyItem);
 
   useEffect(() => {
-    params.then(({ projectId: id }) => setProjectId(id));
+    let active = true;
+    params.then(({ projectId: id }) => {
+      if (active) setProjectId(id);
+    });
+    return () => { active = false; };
   }, [params]);
 
   async function load(id = projectId) {
