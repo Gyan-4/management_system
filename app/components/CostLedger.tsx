@@ -8,19 +8,21 @@ import { useProject } from "./ProjectContext";
 export type CostCategory = "Material" | "Labor" | "Equipment" | "Expense";
 type Project = { _id: string; name: string };
 type BOQItem = { _id: string; itemNo: string; description: string; category: string; unit: string; quantity: number; unitCost: number; totalCost?: number };
-type Entry = { _id: string; description: string; quantity: number; unit: string; unitCost: number; amount: number; date: string; supplierOrEmployee: string; referenceNo: string; notes: string; category?: CostCategory; boqItemId?: string | null };
+type WorkSection = { _id: string; name: string; status: string; progress: number };
+type Entry = { _id: string; description: string; quantity: number; unit: string; unitCost: number; amount: number; date: string; supplierOrEmployee: string; referenceNo: string; notes: string; category?: CostCategory; boqItemId?: string | null; workSectionId?: string | null };
 
-type FormState = { description: string; quantity: string; unit: string; unitCost: string; amount: string; date: string; supplierOrEmployee: string; referenceNo: string; notes: string; boqItemId: string };
+type FormState = { description: string; quantity: string; unit: string; unitCost: string; amount: string; date: string; supplierOrEmployee: string; referenceNo: string; notes: string; boqItemId: string; workSectionId: string };
 const money = (n: number) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 }).format(n);
 
 function defaultForm(category: CostCategory): FormState {
-  return { description: "", quantity: "1", unit: category === "Material" ? "pcs" : category === "Labor" ? "day" : category === "Equipment" ? "day" : "lot", unitCost: "0", amount: "0", date: new Date().toISOString().slice(0, 10), supplierOrEmployee: "", referenceNo: "", notes: "", boqItemId: "" };
+  return { description: "", quantity: "1", unit: category === "Material" ? "pcs" : category === "Labor" ? "day" : category === "Equipment" ? "day" : "lot", unitCost: "0", amount: "0", date: new Date().toISOString().slice(0, 10), supplierOrEmployee: "", referenceNo: "", notes: "", boqItemId: "", workSectionId: "" };
 }
 
 export default function CostLedger({ category, title, description }: { category: CostCategory; title: string; description: string }) {
   const { projects, projectId, setProjectId } = useProject();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [boqItems, setBoqItems] = useState<BOQItem[]>([]);
+  const [workSections, setWorkSections] = useState<WorkSection[]>([]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -47,6 +49,14 @@ export default function CostLedger({ category, title, description }: { category:
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load BOQ items."));
   }, [projectId]);
 
+  useEffect(() => {
+    if (!projectId) { setWorkSections([]); return; }
+    fetch(`/api/projects/${projectId}/sections`, { cache: "no-store" })
+      .then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "Could not load work sections."); return data; })
+      .then((data) => setWorkSections(Array.isArray(data) ? data : []))
+      .catch((err) => setError(err instanceof Error ? err.message : "Could not load work sections."));
+  }, [projectId]);
+
   const total = useMemo(() => entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0), [entries]);
   const boqCategory = category === "Material" ? "Materials" : category === "Expense" ? "Other" : category;
   const plannedItems = useMemo(() => boqItems.filter((item) => item.category === boqCategory), [boqItems, boqCategory]);
@@ -62,7 +72,7 @@ export default function CostLedger({ category, title, description }: { category:
 
   function openEdit(entry: Entry) {
     setEditingId(entry._id);
-    setForm({ description: entry.description, quantity: String(entry.quantity), unit: entry.unit, unitCost: String(entry.unitCost), amount: String(entry.amount), date: entry.date.slice(0, 10), supplierOrEmployee: entry.supplierOrEmployee || "", referenceNo: entry.referenceNo || "", notes: entry.notes || "", boqItemId: entry.boqItemId || "" });
+    setForm({ description: entry.description, quantity: String(entry.quantity), unit: entry.unit, unitCost: String(entry.unitCost), amount: String(entry.amount), date: entry.date.slice(0, 10), supplierOrEmployee: entry.supplierOrEmployee || "", referenceNo: entry.referenceNo || "", notes: entry.notes || "", boqItemId: entry.boqItemId || "", workSectionId: entry.workSectionId || "" });
     setError("");
     setOpen(true);
   }
@@ -74,7 +84,7 @@ export default function CostLedger({ category, title, description }: { category:
     setError("");
     const endpoint = editingId ? `/api/costs/${editingId}` : "/api/costs";
     const method = editingId ? "PATCH" : "POST";
-    const payload = { ...form, projectId, category, boqItemId: form.boqItemId || undefined, amount: category === "Expense" ? Number(form.amount) : calculated };
+    const payload = { ...form, projectId, category, boqItemId: form.boqItemId || undefined, workSectionId: form.workSectionId || undefined, amount: category === "Expense" ? Number(form.amount) : calculated };
 
     try {
       const response = await fetch(endpoint, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -122,7 +132,7 @@ export default function CostLedger({ category, title, description }: { category:
         </div>
 
         <div className="overflow-x-auto border border-slate-200 bg-white">
-          {loading ? <div className="p-12 text-center text-sm text-slate-500">Loading register...</div> : <table className="data-table min-w-[1100px] text-sm"><thead><tr><th>Date</th><th>Description</th><th>BOQ Baseline</th><th>Supplier / Employee</th><th>Reference</th><th className="text-right">Qty</th><th>Unit</th><th className="text-right">Unit Cost</th><th className="text-right">Actual Amount</th><th className="text-right">Actions</th></tr></thead><tbody>{entries.map((entry) => <tr key={entry._id}><td className="whitespace-nowrap">{new Date(entry.date).toLocaleDateString("en-PH")}</td><td className="font-semibold text-slate-900">{entry.description}</td><td>{entry.boqItemId ? (boqItems.find((item) => item._id === entry.boqItemId)?.itemNo || "Linked") : "—"}</td><td>{entry.supplierOrEmployee || "—"}</td><td>{entry.referenceNo || "—"}</td><td className="text-right tabular-nums">{entry.quantity}</td><td>{entry.unit}</td><td className="text-right tabular-nums">{money(entry.unitCost)}</td><td className="text-right font-bold tabular-nums">{money(entry.amount)}</td><td><div className="flex justify-end gap-1"><button aria-label={`Edit ${entry.description}`} onClick={() => openEdit(entry)} className="p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"><Pencil size={15} /></button><button aria-label={`Delete ${entry.description}`} onClick={() => removeEntry(entry._id)} className="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button></div></td></tr>)}</tbody>{entries.length > 0 && <tfoot><tr><td colSpan={8} className="text-right font-bold">REGISTER TOTAL</td><td className="text-right text-base font-bold">{money(total)}</td><td /></tr></tfoot>}</table>}
+          {loading ? <div className="p-12 text-center text-sm text-slate-500">Loading register...</div> : <table className="data-table min-w-[1100px] text-sm"><thead><tr><th>Date</th><th>Description</th><th>BOQ Baseline</th><th>Work Section</th><th>Supplier / Employee</th><th>Reference</th><th className="text-right">Qty</th><th>Unit</th><th className="text-right">Unit Cost</th><th className="text-right">Actual Amount</th><th className="text-right">Actions</th></tr></thead><tbody>{entries.map((entry) => <tr key={entry._id}><td className="whitespace-nowrap">{new Date(entry.date).toLocaleDateString("en-PH")}</td><td className="font-semibold text-slate-900">{entry.description}</td><td>{entry.boqItemId ? (boqItems.find((item) => item._id === entry.boqItemId)?.itemNo || "Linked") : "—"}</td><td>{entry.workSectionId ? (workSections.find((section) => section._id === entry.workSectionId)?.name || "Linked") : "—"}</td><td>{entry.supplierOrEmployee || "—"}</td><td>{entry.referenceNo || "—"}</td><td className="text-right tabular-nums">{entry.quantity}</td><td>{entry.unit}</td><td className="text-right tabular-nums">{money(entry.unitCost)}</td><td className="text-right font-bold tabular-nums">{money(entry.amount)}</td><td><div className="flex justify-end gap-1"><button aria-label={`Edit ${entry.description}`} onClick={() => openEdit(entry)} className="p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"><Pencil size={15} /></button><button aria-label={`Delete ${entry.description}`} onClick={() => removeEntry(entry._id)} className="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button></div></td></tr>)}</tbody>{entries.length > 0 && <tfoot><tr><td colSpan={9} className="text-right font-bold">REGISTER TOTAL</td><td className="text-right text-base font-bold">{money(total)}</td><td /></tr></tfoot>}</table>}
           {!loading && entries.length === 0 && <div className="p-12 text-center text-sm text-slate-500">No {title.toLowerCase()} records for this project.</div>}
         </div>
 
@@ -134,6 +144,7 @@ export default function CostLedger({ category, title, description }: { category:
             <Field label={category === "Labor" ? "Employee" : category === "Material" ? "Supplier" : "Supplier / Provider"} value={form.supplierOrEmployee} onChange={(value) => setForm({ ...form, supplierOrEmployee: value })} />
             <Field label="Reference No." value={form.referenceNo} onChange={(value) => setForm({ ...form, referenceNo: value })} />
             <label className="sm:col-span-2"><span className="text-sm font-semibold text-slate-700">BOQ Baseline</span><select value={form.boqItemId} onChange={(e) => setForm({ ...form, boqItemId: e.target.value })} className="mt-1.5 w-full border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"><option value="">No BOQ link</option>{plannedItems.map((item) => <option key={item._id} value={item._id}>{item.itemNo} · {item.description} · {money(Number(item.totalCost ?? Number(item.quantity || 0) * Number(item.unitCost || 0)))}</option>)}</select></label>
+            <label className="sm:col-span-2"><span className="text-sm font-semibold text-slate-700">Work Section</span><select value={form.workSectionId} onChange={(e) => setForm({ ...form, workSectionId: e.target.value })} className="mt-1.5 w-full border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"><option value="">No work section link</option>{workSections.map((section) => <option key={section._id} value={section._id}>{section.name} · {section.progress}% · {section.status}</option>)}</select></label>
             {category !== "Expense" ? <><Field label="Quantity" required type="number" min="0" step="any" value={form.quantity} onChange={(value) => setForm({ ...form, quantity: value })} /><Field label="Unit" required value={form.unit} onChange={(value) => setForm({ ...form, unit: value })} /><Field label="Unit Cost" required type="number" min="0" step="any" value={form.unitCost} onChange={(value) => setForm({ ...form, unitCost: value })} /></> : <Field label="Amount" required type="number" min="0" step="any" value={form.amount} onChange={(value) => setForm({ ...form, amount: value })} />}
             <label className="sm:col-span-2"><span className="text-sm font-semibold text-slate-700">Notes</span><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} className="mt-1.5 w-full border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500" /></label>
           </div>
