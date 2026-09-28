@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import CostEntry from "@/models/CostEntry";
 import BOQItem from "@/models/BOQItem";
+import WorkSection from "@/models/WorkSection";
 
 const categories = ["Material", "Labor", "Equipment", "Expense"] as const;
 
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const projectId = String(body.projectId || "").trim();
     const boqItemId = String(body.boqItemId || "").trim();
+    const workSectionId = String(body.workSectionId || "").trim();
     const category = String(body.category || "").trim();
     const description = String(body.description || "").trim();
     const unit = String(body.unit || "lot").trim();
@@ -54,6 +56,7 @@ export async function POST(request: NextRequest) {
     }
     if (!categories.includes(category as (typeof categories)[number])) return NextResponse.json({ error: "Invalid cost category" }, { status: 400 });
     if (boqItemId && !mongoose.Types.ObjectId.isValid(boqItemId)) return NextResponse.json({ error: "Invalid BOQ item ID" }, { status: 400 });
+    if (workSectionId && !mongoose.Types.ObjectId.isValid(workSectionId)) return NextResponse.json({ error: "Invalid work section ID" }, { status: 400 });
     if (!unit) return NextResponse.json({ error: "Unit cannot be empty" }, { status: 400 });
 
     const quantity = validNumber(body.quantity, 0);
@@ -70,10 +73,15 @@ export async function POST(request: NextRequest) {
       if (!boqItem) return NextResponse.json({ error: "BOQ item does not belong to this project" }, { status: 400 });
       if (boqItem.category !== expectedBOQCategory(category)) return NextResponse.json({ error: "BOQ item category does not match this cost register" }, { status: 400 });
     }
+    if (workSectionId) {
+      const section = await WorkSection.findOne({ _id: workSectionId, projectId }).lean();
+      if (!section) return NextResponse.json({ error: "Work section does not belong to this project" }, { status: 400 });
+    }
 
     const entry = await CostEntry.create({
       projectId,
       boqItemId: boqItemId || null,
+      workSectionId: workSectionId || null,
       category,
       description,
       quantity,
