@@ -22,6 +22,7 @@ type Section = {
   order: number;
   status: string;
   progress: number;
+  ledgerActualCost?: number;
   items: Item[];
 };
 
@@ -108,7 +109,7 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
 
   const totals = useMemo(() => {
     const estimated = sections.reduce((sum, s) => sum + s.items.reduce((a, i) => a + Number(i.quantity || 0) * Number(i.unitCost || 0), 0), 0);
-    const actual = sections.reduce((sum, s) => sum + s.items.reduce((a, i) => a + Number(i.actualCost || 0), 0), 0);
+    const actual = sections.reduce((sum, s) => sum + (Number(s.ledgerActualCost || 0) > 0 ? Number(s.ledgerActualCost) : s.items.reduce((a, i) => a + Number(i.actualCost || 0), 0)), 0);
     const weightedProgress = estimated
       ? sections.reduce((sum, s) => sum + (s.items.reduce((a, i) => a + Number(i.quantity || 0) * Number(i.unitCost || 0), 0) * Number(s.progress || 0)), 0) / estimated
       : sections.length ? sections.reduce((sum, s) => sum + Number(s.progress || 0), 0) / sections.length : 0;
@@ -253,14 +254,15 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
             <div className="divide-y divide-slate-200">
               {sections.map((section) => {
                 const estimated = section.items.reduce((a, i) => a + Number(i.quantity || 0) * Number(i.unitCost || 0), 0);
-                const actual = section.items.reduce((a, i) => a + Number(i.actualCost || 0), 0);
+                const manualActual = section.items.reduce((a, i) => a + Number(i.actualCost || 0), 0);
+                const actual = Number(section.ledgerActualCost || 0) > 0 ? Number(section.ledgerActualCost) : manualActual;
                 const isOpen = !!open[section._id];
                 return (
                   <article key={section._id}>
                     <div className="grid gap-4 px-5 py-5 lg:grid-cols-[1fr_170px_180px_170px_auto] lg:items-center">
                       <button onClick={()=>setOpen(v=>({...v,[section._id]:!isOpen}))} className="text-left">
                         <div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-400">{String(section.order + 1).padStart(2,"0")}</span><span className="font-bold text-slate-900">{section.name}</span>{isOpen?<ChevronUp size={15}/>:<ChevronDown size={15}/>}</div>
-                        <div className="mt-2 h-1.5 w-full max-w-md bg-slate-100"><div className="h-full bg-blue-600" style={{width:`${Math.max(0,Math.min(100,section.progress))}%`}}/></div>
+                        <div className="mt-2 h-1.5 w-full max-w-md bg-slate-100"><div className="h-full bg-blue-600" style={{width:`${Math.max(0,Math.min(100,section.progress))}%`}}/></div><div className="mt-1 text-[10px] text-slate-400">{section.ledgerActualCost ? "Actual from cost ledger" : "Manual section actual"}</div>
                       </button>
                       <Metric label="Estimated" value={money(estimated)} />
                       <Metric label="Actual" value={money(actual)} />
