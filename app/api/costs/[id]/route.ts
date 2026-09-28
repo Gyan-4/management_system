@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import CostEntry from "@/models/CostEntry";
 import BOQItem from "@/models/BOQItem";
+import WorkSection from "@/models/WorkSection";
 
 const categories = ["Material", "Labor", "Equipment", "Expense"] as const;
 
@@ -21,6 +22,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!mongoose.Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Invalid entry ID" }, { status: 400 });
     const body = await request.json();
     const boqItemId = String(body.boqItemId || "").trim();
+    const workSectionId = String(body.workSectionId || "").trim();
     const category = String(body.category || "").trim();
     const description = String(body.description || "").trim();
     const unit = String(body.unit || "lot").trim();
@@ -29,6 +31,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!category || !description || !unit || !date) return NextResponse.json({ error: "Category, description, unit, and date are required" }, { status: 400 });
     if (!categories.includes(category as (typeof categories)[number])) return NextResponse.json({ error: "Invalid cost category" }, { status: 400 });
     if (boqItemId && !mongoose.Types.ObjectId.isValid(boqItemId)) return NextResponse.json({ error: "Invalid BOQ item ID" }, { status: 400 });
+    if (workSectionId && !mongoose.Types.ObjectId.isValid(workSectionId)) return NextResponse.json({ error: "Invalid work section ID" }, { status: 400 });
 
     const quantity = validNumber(body.quantity, 0);
     const unitCost = validNumber(body.unitCost, 0);
@@ -44,8 +47,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (!boqItem) return NextResponse.json({ error: "BOQ item does not belong to this project" }, { status: 400 });
       if (boqItem.category !== expectedBOQCategory(category)) return NextResponse.json({ error: "BOQ item category does not match this cost register" }, { status: 400 });
     }
+    if (workSectionId) {
+      const section = await WorkSection.findOne({ _id: workSectionId, projectId: existing.projectId }).lean();
+      if (!section) return NextResponse.json({ error: "Work section does not belong to this project" }, { status: 400 });
+    }
     const entry = await CostEntry.findByIdAndUpdate(id, {
       boqItemId: boqItemId || null,
+      workSectionId: workSectionId || null,
       category,
       description,
       quantity,
