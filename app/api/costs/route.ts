@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import CostEntry from "@/models/CostEntry";
+import BOQItem from "@/models/BOQItem";
 
 const categories = ["Material", "Labor", "Equipment", "Expense"] as const;
+
+function expectedBOQCategory(category: string) {
+  return category === "Material" ? "Materials" : category === "Expense" ? "Other" : category;
+}
 
 function validNumber(value: unknown, fallback = 0) {
   const number = Number(value);
@@ -38,6 +43,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const projectId = String(body.projectId || "").trim();
+    const boqItemId = String(body.boqItemId || "").trim();
     const category = String(body.category || "").trim();
     const description = String(body.description || "").trim();
     const unit = String(body.unit || "lot").trim();
@@ -47,6 +53,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Project, category, description, and date are required" }, { status: 400 });
     }
     if (!categories.includes(category as (typeof categories)[number])) return NextResponse.json({ error: "Invalid cost category" }, { status: 400 });
+    if (boqItemId && !mongoose.Types.ObjectId.isValid(boqItemId)) return NextResponse.json({ error: "Invalid BOQ item ID" }, { status: 400 });
     if (!unit) return NextResponse.json({ error: "Unit cannot be empty" }, { status: 400 });
 
     const quantity = validNumber(body.quantity, 0);
@@ -58,8 +65,15 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(amount)) return NextResponse.json({ error: "Calculated amount is invalid" }, { status: 400 });
 
     await connectDB();
+    if (boqItemId) {
+      const boqItem = await BOQItem.findOne({ _id: boqItemId, projectId }).lean();
+      if (!boqItem) return NextResponse.json({ error: "BOQ item does not belong to this project" }, { status: 400 });
+      if (boqItem.category !== expectedBOQCategory(category)) return NextResponse.json({ error: "BOQ item category does not match this cost register" }, { status: 400 });
+    }
+
     const entry = await CostEntry.create({
       projectId,
+      boqItemId: boqItemId || null,
       category,
       description,
       quantity,
