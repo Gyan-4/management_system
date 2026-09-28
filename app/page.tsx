@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowUpRight, ClipboardList, DollarSign, Plus, Wallet, RefreshCw } from "lucide-react";
 
@@ -11,14 +11,24 @@ const money = (n: number) => new Intl.NumberFormat("en-PH", { style: "currency",
 
 export default function Home() {
   const [data, setData] = useState<Dashboard | null>(null);
-  const [error, setError] = useState("");\n  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/dashboard", { cache: "no-store" })
-      .then(async r => { if (!r.ok) throw new Error("Could not load dashboard."); return r.json(); })
-      .then(setData)
-      .catch(e => setError(e instanceof Error ? e.message : "Could not load dashboard."));
-  }, []);
+  async function loadDashboard() {
+    setRefreshing(true);
+    setError("");
+    try {
+      const r = await fetch("/api/dashboard", { cache: "no-store" });
+      if (!r.ok) throw new Error("Could not load dashboard.");
+      setData(await r.json());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load dashboard.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  useEffect(() => { void loadDashboard(); }, []);
 
   const projects = data?.projects || [];
   const totals = data?.totals || { contract: 0, budget: 0, actual: 0, boq: 0, remainingBudget: 0, projectedProfit: 0 };
@@ -56,5 +66,5 @@ export default function Home() {
     </div>
   </main>;
 }
-function Kpi({label,value,note,icon}:{label:string;value:string;note:string;icon:React.ReactNode}){return <div className="bg-white p-5"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">{icon}{label}</div><div className="mt-2 text-xl font-bold tracking-tight tabular-nums">{value}</div><div className="mt-1 text-[11px] text-slate-500">{note}</div></div>}
+function Kpi({label,value,note,icon}:{label:string;value:string;note:string;icon:ReactNode}){return <div className="bg-white p-5"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">{icon}{label}</div><div className="mt-2 text-xl font-bold tracking-tight tabular-nums">{value}</div><div className="mt-1 text-[11px] text-slate-500">{note}</div></div>}
 function Metric({label,value,danger=false}:{label:string;value:string;danger?:boolean}){return <div className="flex items-center justify-between gap-4 p-5"><span className="text-xs font-semibold text-slate-500">{label}</span><span className={`font-bold tabular-nums ${danger?"text-red-600":"text-slate-900"}`}>{value}</span></div>}
