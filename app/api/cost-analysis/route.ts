@@ -42,10 +42,19 @@ export async function GET(request: NextRequest) {
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
     const sectionRows = sections as unknown as WorkSectionRow[];
+    const actualBySection = new Map<string, number>();
+    actual.forEach((entry) => {
+      if (entry.workSectionId) {
+        const key = String(entry.workSectionId);
+        actualBySection.set(key, (actualBySection.get(key) || 0) + Number(entry.amount || 0));
+      }
+    });
 
     const sectionBreakdown = sectionRows.map((section) => {
       const estimated = section.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitCost || 0), 0);
-      const actualCost = section.items.reduce((sum, item) => sum + Number(item.actualCost || 0), 0);
+      const manualActual = section.items.reduce((sum, item) => sum + Number(item.actualCost || 0), 0);
+      const linkedActual = actualBySection.get(String(section._id));
+      const actualCost = linkedActual !== undefined ? linkedActual : manualActual;
       return {
         id: String(section._id),
         name: section.name,
@@ -80,14 +89,7 @@ export async function GET(request: NextRequest) {
 
     const estimatedTotal = Object.values(estimate).reduce((a, b) => a + b, 0);
     const costEntryActualTotal = Object.values(spent).reduce((a, b) => a + b, 0);
-    if (sectionActualTotal > 0) {
-      Object.keys(spent).forEach((key) => { spent[key as keyof typeof spent] = 0; });
-      sectionRows.forEach((section) => section.items.forEach((item) => {
-        const category = item.category === "Material" ? "Material" : item.category === "Other" ? "Expense" : item.category;
-        spent[category as keyof typeof spent] += Number(item.actualCost || 0);
-      }));
-    }
-    const actualTotal = sectionActualTotal > 0 ? sectionActualTotal : costEntryActualTotal;
+    const actualTotal = costEntryActualTotal > 0 ? costEntryActualTotal : sectionActualTotal;
     const physicalProgress = progress?.percentage ?? 0;
     const financialProgress = project.contractAmount > 0 ? (actualTotal / project.contractAmount) * 100 : 0;
     const budgetUtilization = project.budget > 0 ? (actualTotal / project.budget) * 100 : 0;
