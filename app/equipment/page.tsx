@@ -3,19 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, Truck } from "lucide-react";
 import CostLedger from "@/app/components/CostLedger";
+import { useProject } from "@/app/components/ProjectContext";
 
-type Project={_id:string;name:string};
 type Entry={_id:string;date:string;description:string;quantity:number;unit:string;unitCost:number;amount:number;supplierOrEmployee?:string};
 
 const money=(n:number)=>new Intl.NumberFormat("en-PH",{style:"currency",currency:"PHP",maximumFractionDigits:2}).format(n);
 
 export default function EquipmentPage(){
- const [projects,setProjects]=useState<Project[]>([]);
- const [projectId,setProjectId]=useState("");
+ const { projects, projectId, setProjectId } = useProject();
  const [entries,setEntries]=useState<Entry[]>([]);
  const [period,setPeriod]=useState("all");
 
- useEffect(()=>{fetch("/api/projects",{cache:"no-store"}).then(r=>r.json()).then(d=>{const list=Array.isArray(d)?d:[];setProjects(list);if(list[0])setProjectId(list[0]._id)})},[]);
  useEffect(()=>{if(!projectId)return;fetch("/api/costs?projectId="+encodeURIComponent(projectId)+"&category=Equipment",{cache:"no-store"}).then(r=>r.json()).then(d=>setEntries(Array.isArray(d)?d:[]))},[projectId]);
 
  const filtered=useMemo(()=>period==="all"?entries:entries.filter(x=>(Date.now()-new Date(x.date).getTime())<=Number(period)*86400000),[entries,period]);
