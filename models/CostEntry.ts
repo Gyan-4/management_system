@@ -3,6 +3,7 @@ import mongoose, { Schema, models } from "mongoose";
 const CostEntrySchema = new Schema(
   {
     projectId: { type: Schema.Types.ObjectId, ref: "Project", required: true, index: true },
+    boqItemId: { type: Schema.Types.ObjectId, ref: "BOQItem", default: null, index: true },
     category: { type: String, enum: ["Material", "Labor", "Equipment", "Expense"], required: true, index: true },
     description: { type: String, required: true, trim: true },
     quantity: { type: Number, default: 1, min: 0 },
