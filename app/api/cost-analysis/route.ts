@@ -7,6 +7,21 @@ import Project from "@/models/Project";
 import ProjectProgress from "@/models/ProjectProgress";
 import WorkSection from "@/models/WorkSection";
 
+type WorkItem = {
+  category: "Material" | "Labor" | "Equipment" | "Other";
+  quantity?: number;
+  unitCost?: number;
+  actualCost?: number;
+};
+
+type WorkSectionRow = {
+  _id: unknown;
+  name: string;
+  status: string;
+  progress: number;
+  items: WorkItem[];
+};
+
 export async function GET(request: NextRequest) {
   try {
     const projectId = request.nextUrl.searchParams.get("projectId");
@@ -26,7 +41,9 @@ export async function GET(request: NextRequest) {
 
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
-    const sectionBreakdown = sections.map((section) => {
+    const sectionRows = sections as unknown as WorkSectionRow[];
+
+    const sectionBreakdown = sectionRows.map((section) => {
       const estimated = section.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitCost || 0), 0);
       const actualCost = section.items.reduce((sum, item) => sum + Number(item.actualCost || 0), 0);
       return {
@@ -50,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     if (sectionEstimatedTotal > 0) {
       Object.keys(estimate).forEach((key) => { estimate[key as keyof typeof estimate] = 0; });
-      sections.forEach((section) => section.items.forEach((item) => {
+      sectionRows.forEach((section) => section.items.forEach((item) => {
         const category = item.category === "Material" ? "Materials" : item.category;
         estimate[category as keyof typeof estimate] += Number(item.quantity || 0) * Number(item.unitCost || 0);
       }));
@@ -65,7 +82,7 @@ export async function GET(request: NextRequest) {
     const costEntryActualTotal = Object.values(spent).reduce((a, b) => a + b, 0);
     if (sectionActualTotal > 0) {
       Object.keys(spent).forEach((key) => { spent[key as keyof typeof spent] = 0; });
-      sections.forEach((section) => section.items.forEach((item) => {
+      sectionRows.forEach((section) => section.items.forEach((item) => {
         const category = item.category === "Material" ? "Material" : item.category === "Other" ? "Expense" : item.category;
         spent[category as keyof typeof spent] += Number(item.actualCost || 0);
       }));
@@ -98,7 +115,7 @@ export async function GET(request: NextRequest) {
       latestProgressDate: progress?.progressDate ?? null,
       boqCount: boq.length,
       entryCount: actual.length,
-      workSectionCount: sections.length,
+      workSectionCount: sectionRows.length,
       sectionBreakdown,
       estimateSource: sectionEstimatedTotal > 0 ? "Work Section Breakdown" : "BOQ",
     });
