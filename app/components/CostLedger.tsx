@@ -17,8 +17,7 @@ function defaultForm(category: CostCategory): FormState {
 }
 
 export default function CostLedger({ category, title, description }: { category: CostCategory; title: string; description: string }) {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectId, setProjectId] = useState("");
+  const { projects, projectId, setProjectId } = useProject();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -26,13 +25,6 @@ export default function CostLedger({ category, title, description }: { category:
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState<FormState>(() => defaultForm(category));
-
-  useEffect(() => {
-    fetch("/api/projects")
-      .then(async (r) => { if (!r.ok) throw new Error("Could not load projects."); return r.json(); })
-      .then((data) => { setProjects(Array.isArray(data) ? data : []); if (data[0]) setProjectId(data[0]._id); })
-      .catch((err) => setError(err instanceof Error ? err.message : "Could not load projects."));
-  }, []);
 
   useEffect(() => {
     if (!projectId) { setEntries([]); return; }
