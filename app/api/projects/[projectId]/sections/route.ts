@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Project from "@/models/Project";
 import WorkSection from "@/models/WorkSection";
+import CostEntry from "@/models/CostEntry";
 
 type Context = { params: Promise<{ projectId: string }> };
 
@@ -20,8 +21,20 @@ export async function GET(_request: NextRequest, { params }: Context) {
   try {
     const { projectId } = await params;
     await connectDB();
-    const sections = await WorkSection.find({ projectId }).sort({ order: 1, createdAt: 1 }).lean();
-    return NextResponse.json(sections);
+    const [sections, costs] = await Promise.all([
+      WorkSection.find({ projectId }).sort({ order: 1, createdAt: 1 }).lean(),
+      CostEntry.find({ projectId, workSectionId: { $ne: null } }).select("workSectionId amount").lean(),
+    ]);
+    const actualBySection = new Map<string, number>();
+    costs.forEach((cost) => {
+      if (!cost.workSectionId) return;
+      const key = String(cost.workSectionId);
+      actualBySection.set(key, (actualBySection.get(key) || 0) + Number(cost.amount || 0));
+    });
+    return NextResponse.json(sections.map((section) => ({
+      ...section,
+      ledgerActualCost: actualBySection.get(String(section._id)) || 0,
+    })));
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to fetch work sections" }, { status: 500 });
