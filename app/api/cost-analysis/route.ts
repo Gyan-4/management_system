@@ -74,14 +74,6 @@ export async function GET(request: NextRequest) {
       estimate[item.category as keyof typeof estimate] += item.quantity * item.unitCost;
     });
 
-    if (sectionEstimatedTotal > 0) {
-      Object.keys(estimate).forEach((key) => { estimate[key as keyof typeof estimate] = 0; });
-      sectionRows.forEach((section) => section.items.forEach((item) => {
-        const category = item.category === "Material" ? "Materials" : item.category;
-        estimate[category as keyof typeof estimate] += Number(item.quantity || 0) * Number(item.unitCost || 0);
-      }));
-    }
-
     const spent = { Material: 0, Labor: 0, Equipment: 0, Expense: 0 };
     actual.forEach((item) => {
       spent[item.category as keyof typeof spent] += item.amount;
@@ -119,7 +111,7 @@ export async function GET(request: NextRequest) {
       entryCount: actual.length,
       workSectionCount: sectionRows.length,
       sectionBreakdown,
-      estimateSource: sectionEstimatedTotal > 0 ? "Work Section Breakdown" : "BOQ",
+      estimateSource: "BOQ",
     });
   } catch (error) {
     console.error(error);
