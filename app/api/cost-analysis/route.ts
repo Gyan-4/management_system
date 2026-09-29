@@ -75,8 +75,16 @@ export async function GET(request: NextRequest) {
     });
 
     const spent = { Material: 0, Labor: 0, Equipment: 0, Expense: 0 };
+    const actualByBOQ = new Map<string, { quantity: number; amount: number }>();
     actual.forEach((item) => {
       spent[item.category as keyof typeof spent] += item.amount;
+      if (item.boqItemId) {
+        const key = String(item.boqItemId);
+        const current = actualByBOQ.get(key) || { quantity: 0, amount: 0 };
+        current.quantity += Number(item.quantity || 0);
+        current.amount += Number(item.amount || 0);
+        actualByBOQ.set(key, current);
+      }
     });
 
     const estimatedTotal = Object.values(estimate).reduce((a, b) => a + b, 0);
@@ -86,6 +94,26 @@ export async function GET(request: NextRequest) {
     const financialProgress = project.contractAmount > 0 ? (actualTotal / project.contractAmount) * 100 : 0;
     const budgetUtilization = project.budget > 0 ? (actualTotal / project.budget) * 100 : 0;
     const progressGap = financialProgress - physicalProgress;
+
+    const boqLineAnalysis = boq.map((item) => {
+      const actualLine = actualByBOQ.get(String(item._id)) || { quantity: 0, amount: 0 };
+      const plannedQuantity = Number(item.quantity || 0);
+      const plannedCost = Number(item.totalCost ?? plannedQuantity * Number(item.unitCost || 0));
+      return {
+        id: String(item._id),
+        itemNo: item.itemNo,
+        description: item.description,
+        category: item.category,
+        unit: item.unit,
+        plannedQuantity,
+        actualQuantity: actualLine.quantity,
+        quantityVariance: plannedQuantity - actualLine.quantity,
+        plannedCost,
+        actualCost: actualLine.amount,
+        costVariance: plannedCost - actualLine.amount,
+        utilization: plannedQuantity > 0 ? (actualLine.quantity / plannedQuantity) * 100 : 0,
+      };
+    });
 
     return NextResponse.json({
       project,
@@ -111,6 +139,7 @@ export async function GET(request: NextRequest) {
       entryCount: actual.length,
       workSectionCount: sectionRows.length,
       sectionBreakdown,
+      boqLineAnalysis,
       estimateSource: "BOQ",
     });
   } catch (error) {
