@@ -23,17 +23,37 @@ export async function GET(_request: NextRequest, { params }: Context) {
     await connectDB();
     const [sections, costs] = await Promise.all([
       WorkSection.find({ projectId }).sort({ order: 1, createdAt: 1 }).lean(),
-      CostEntry.find({ projectId, workSectionId: { $ne: null } }).select("workSectionId amount").lean(),
+      CostEntry.find({ projectId }).select("workSectionId boqItemId quantity amount").lean(),
     ]);
     const actualBySection = new Map<string, number>();
+    const actualByBOQ = new Map<string, { quantity: number; amount: number }>();
     costs.forEach((cost) => {
-      if (!cost.workSectionId) return;
-      const key = String(cost.workSectionId);
-      actualBySection.set(key, (actualBySection.get(key) || 0) + Number(cost.amount || 0));
+      if (cost.workSectionId) {
+        const sectionKey = String(cost.workSectionId);
+        actualBySection.set(sectionKey, (actualBySection.get(sectionKey) || 0) + Number(cost.amount || 0));
+      }
+      if (cost.boqItemId) {
+        const boqKey = String(cost.boqItemId);
+        const current = actualByBOQ.get(boqKey) || { quantity: 0, amount: 0 };
+        current.quantity += Number(cost.quantity || 0);
+        current.amount += Number(cost.amount || 0);
+        actualByBOQ.set(boqKey, current);
+      }
     });
+
     return NextResponse.json(sections.map((section) => ({
       ...section,
       ledgerActualCost: actualBySection.get(String(section._id)) || 0,
+      items: section.items.map((item) => {
+        const actual = item.boqItemId ? actualByBOQ.get(String(item.boqItemId)) : undefined;
+        return {
+          ...item,
+          ledgerActualQuantity: actual?.quantity || 0,
+          ledgerActualCost: actual?.amount || 0,
+          ledgerQuantityVariance: Number(item.quantity || 0) - (actual?.quantity || 0),
+          ledgerCostVariance: Number(item.quantity || 0) * Number(item.unitCost || 0) - (actual?.amount || 0),
+        };
+      }),
     })));
   } catch (error) {
     console.error(error);
