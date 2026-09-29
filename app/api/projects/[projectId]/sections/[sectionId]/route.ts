@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import WorkSection from "@/models/WorkSection";
+import BOQItem from "@/models/BOQItem";
 
 type Context = { params: Promise<{ projectId: string; sectionId: string }> };
 
@@ -17,6 +18,16 @@ export async function PATCH(request: NextRequest, { params }: Context) {
 
     if (update.progress !== undefined) {
       update.progress = Math.max(0, Math.min(100, Number(update.progress)));
+    }
+
+    if (Array.isArray(update.items)) {
+      const items = update.items as Array<Record<string, unknown>>;
+      const boqIds = items.map((item) => String(item.boqItemId || "").trim()).filter(Boolean);
+      if (boqIds.length) {
+        const valid = await BOQItem.countDocuments({ _id: { $in: boqIds }, projectId });
+        if (valid !== boqIds.length) return NextResponse.json({ error: "One or more BOQ items do not belong to this project" }, { status: 400 });
+        update.items = items.map((item) => ({ ...item, boqItemId: String(item.boqItemId || "").trim() || null }));
+      }
     }
 
     const section = await WorkSection.findOneAndUpdate(
