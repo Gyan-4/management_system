@@ -3,14 +3,16 @@ import { connectDB } from "@/lib/mongodb";
 import Project from "@/models/Project";
 import BOQItem from "@/models/BOQItem";
 import CostEntry from "@/models/CostEntry";
+import ProjectProgress from "@/models/ProjectProgress";
 
 export async function GET() {
   try {
     await connectDB();
-    const [projects, boq, costs] = await Promise.all([
+    const [projects, boq, costs, progress] = await Promise.all([
       Project.find().lean(),
       BOQItem.find().lean(),
       CostEntry.find().lean(),
+      ProjectProgress.find().sort({ progressDate: -1, createdAt: -1 }).lean(),
     ]);
 
     const projectRows = projects.map((project) => {
@@ -29,6 +31,9 @@ export async function GET() {
 
       const budget = Number(project.budget || 0);
       const contractAmount = Number(project.contractAmount || 0);
+      const latestProgress = progress.find((row) => String(row.projectId) === id);
+      const physicalProgress = Number(latestProgress?.percentage || 0);
+      const financialProgress = contractAmount > 0 ? (actualCost / contractAmount) * 100 : 0;
 
       return {
         _id: project._id,
@@ -43,6 +48,10 @@ export async function GET() {
         variance: boqTotal - actualCost,
         projectedProfit: contractAmount - actualCost,
         budgetUtilization: budget > 0 ? (actualCost / budget) * 100 : 0,
+        physicalProgress,
+        financialProgress,
+        progressGap: financialProgress - physicalProgress,
+        latestProgressDate: latestProgress?.progressDate ?? null,
       };
     });
 
@@ -55,6 +64,8 @@ export async function GET() {
         boq: projectRows.reduce((sum, project) => sum + project.boqTotal, 0),
         remainingBudget: projectRows.reduce((sum, project) => sum + project.remainingBudget, 0),
         projectedProfit: projectRows.reduce((sum, project) => sum + project.projectedProfit, 0),
+        physicalProgress: projectRows.length ? projectRows.reduce((sum, project) => sum + project.physicalProgress, 0) / projectRows.length : 0,
+        financialProgress: projectRows.length ? projectRows.reduce((sum, project) => sum + project.financialProgress, 0) / projectRows.length : 0,
       },
     });
   } catch (error) {
