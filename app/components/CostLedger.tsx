@@ -62,6 +62,39 @@ export default function CostLedger({ category, title, description }: { category:
   const plannedItems = useMemo(() => boqItems.filter((item) => item.category === boqCategory), [boqItems, boqCategory]);
   const plannedTotal = useMemo(() => plannedItems.reduce((sum, item) => sum + Number(item.totalCost ?? Number(item.quantity || 0) * Number(item.unitCost || 0)), 0), [plannedItems]);
   const calculated = (Number(form.quantity) || 0) * (Number(form.unitCost) || 0);
+  const selectedBOQ = useMemo(
+    () => plannedItems.find((item) => item._id === form.boqItemId) || null,
+    [plannedItems, form.boqItemId]
+  );
+  const selectedBOQActualQuantity = useMemo(
+    () =>
+      selectedBOQ
+        ? entries
+            .filter((entry) => entry.boqItemId === selectedBOQ._id && entry._id !== editingId)
+            .reduce((sum, entry) => sum + Number(entry.quantity || 0), 0)
+        : 0,
+    [entries, selectedBOQ, editingId]
+  );
+  const selectedBOQRemainingQuantity = selectedBOQ
+    ? Number(selectedBOQ.quantity || 0) - selectedBOQActualQuantity
+    : 0;
+  const selectedBOQPlannedCost = selectedBOQ
+    ? Number(selectedBOQ.totalCost ?? Number(selectedBOQ.quantity || 0) * Number(selectedBOQ.unitCost || 0))
+    : 0;
+  const selectedEntryCost = category === "Expense" ? Number(form.amount) || 0 : calculated;
+  const selectedBOQActualCost = selectedBOQ
+    ? entries
+        .filter((entry) => entry.boqItemId === selectedBOQ._id && entry._id !== editingId)
+        .reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+    : 0;
+  const selectedBOQRemainingCost = selectedBOQ ? selectedBOQPlannedCost - selectedBOQActualCost : 0;
+  const quantityOverrun =
+    Boolean(selectedBOQ) &&
+    category !== "Expense" &&
+    Number(form.quantity || 0) > Math.max(0, selectedBOQRemainingQuantity);
+  const costOverrun =
+    Boolean(selectedBOQ) &&
+    selectedEntryCost > Math.max(0, selectedBOQRemainingCost);
 
   function openAdd() {
     setEditingId(null);
@@ -145,9 +178,11 @@ export default function CostLedger({ category, title, description }: { category:
             <Field label="Reference No." value={form.referenceNo} onChange={(value) => setForm({ ...form, referenceNo: value })} />
             <label className="sm:col-span-2"><span className="text-sm font-semibold text-slate-700">BOQ Baseline</span><select value={form.boqItemId} onChange={(e) => setForm({ ...form, boqItemId: e.target.value })} className="mt-1.5 w-full border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"><option value="">No BOQ link</option>{plannedItems.map((item) => <option key={item._id} value={item._id}>{item.itemNo} · {item.description} · {money(Number(item.totalCost ?? Number(item.quantity || 0) * Number(item.unitCost || 0)))}</option>)}</select></label>
             <label className="sm:col-span-2"><span className="text-sm font-semibold text-slate-700">Work Section</span><select value={form.workSectionId} onChange={(e) => setForm({ ...form, workSectionId: e.target.value })} className="mt-1.5 w-full border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"><option value="">No work section link</option>{workSections.map((section) => <option key={section._id} value={section._id}>{section.name} · {section.progress}% · {section.status}</option>)}</select></label>
+            {selectedBOQ && <div className="sm:col-span-2 grid gap-2 border border-slate-200 bg-slate-50 p-4 text-xs sm:grid-cols-4"><div><div className="font-bold uppercase tracking-wider text-slate-500">Planned Qty</div><div className="mt-1 text-sm font-bold">{selectedBOQ.quantity} {selectedBOQ.unit}</div></div><div><div className="font-bold uppercase tracking-wider text-slate-500">Recorded Qty</div><div className="mt-1 text-sm font-bold">{selectedBOQActualQuantity} {selectedBOQ.unit}</div></div><div><div className="font-bold uppercase tracking-wider text-slate-500">Remaining Qty</div><div className={`mt-1 text-sm font-bold ${selectedBOQRemainingQuantity < 0 ? "text-red-600" : "text-slate-900"}`}>{Math.max(0, selectedBOQRemainingQuantity)} {selectedBOQ.unit}</div></div><div><div className="font-bold uppercase tracking-wider text-slate-500">Remaining Cost</div><div className={`mt-1 text-sm font-bold ${selectedBOQRemainingCost < 0 ? "text-red-600" : "text-slate-900"}`}>{money(Math.max(0, selectedBOQRemainingCost))}</div></div></div>}
             {category !== "Expense" ? <><Field label="Quantity" required type="number" min="0" step="any" value={form.quantity} onChange={(value) => setForm({ ...form, quantity: value })} /><Field label="Unit" required value={form.unit} onChange={(value) => setForm({ ...form, unit: value })} /><Field label="Unit Cost" required type="number" min="0" step="any" value={form.unitCost} onChange={(value) => setForm({ ...form, unitCost: value })} /></> : <Field label="Amount" required type="number" min="0" step="any" value={form.amount} onChange={(value) => setForm({ ...form, amount: value })} />}
             <label className="sm:col-span-2"><span className="text-sm font-semibold text-slate-700">Notes</span><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} className="mt-1.5 w-full border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500" /></label>
           </div>
+          {selectedBOQ && (quantityOverrun || costOverrun) && <div className="mx-6 mb-2 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><div className="font-bold">BOQ control warning</div><div className="mt-1">{quantityOverrun && `This entry exceeds the remaining BOQ quantity by ${(Number(form.quantity || 0) - Math.max(0, selectedBOQRemainingQuantity)).toFixed(2)} ${selectedBOQ.unit}. `}{costOverrun && `This entry exceeds the remaining BOQ cost by ${money(selectedEntryCost - Math.max(0, selectedBOQRemainingCost))}.`}</div><div className="mt-1 text-xs text-amber-800">You can still record the actual if the overrun is intentional; this warning does not block saving.</div></div>}
           {category !== "Expense" && <div className="mx-6 mb-2 border border-slate-200 bg-slate-50 px-4 py-3 text-right text-sm"><span className="text-slate-500">Calculated actual cost </span><b>{money(calculated)}</b></div>}
           <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4"><button type="button" onClick={() => setOpen(false)} className="border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold">Cancel</button><button disabled={saving} className="bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50">{saving ? "Saving..." : editingId ? "Save Changes" : "Save Record"}</button></div>
         </form></div>}
