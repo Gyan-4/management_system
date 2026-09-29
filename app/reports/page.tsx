@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Printer, RefreshCw, AlertTriangle } from "lucide-react";
 
 type Project={_id:string;name:string;client?:string;location?:string;budget:number;contractAmount:number;status:string;projectManager?:string};
-type BoqLine={id:string;itemNo:string;description:string;category:string;unit:string;plannedQuantity:number;actualQuantity:number;quantityVariance:number;plannedCost:number;actualCost:number;costVariance:number;utilization:number};\ntype SectionRow={id:string;name:string;status:string;progress:number;estimated:number;actual:number;remaining:number};\ntype Analysis={project:Project;estimate:Record<string,number>;spent:Record<string,number>;estimatedTotal:number;actualTotal:number;variance:number;budgetRemaining:number;projectedProfit:number;boqCount:number;entryCount:number;physicalProgress:number;financialProgress:number;budgetUtilization:number;progressGap:number;progressStatus:string;boqLineAnalysis:BoqLine[];sectionBreakdown:SectionRow[]};
+type BoqLine={id:string;itemNo:string;description:string;category:string;unit:string;plannedQuantity:number;actualQuantity:number;quantityVariance:number;plannedCost:number;actualCost:number;costVariance:number;utilization:number};
+type SectionRow={id:string;name:string;status:string;progress:number;estimated:number;actual:number;remaining:number};
+type Analysis={project:Project;estimate:Record<string,number>;spent:Record<string,number>;estimatedTotal:number;actualTotal:number;variance:number;budgetRemaining:number;projectedProfit:number;boqCount:number;entryCount:number;physicalProgress:number;financialProgress:number;budgetUtilization:number;progressGap:number;progressStatus:string;boqLineAnalysis:BoqLine[];sectionBreakdown:SectionRow[]};
 const money=(n:number)=>new Intl.NumberFormat("en-PH",{style:"currency",currency:"PHP",maximumFractionDigits:2}).format(Number(n)||0);
 const categories=[["Materials","Material"],["Labor","Labor"],["Equipment","Equipment"],["Other","Expense"]] as const;
 
