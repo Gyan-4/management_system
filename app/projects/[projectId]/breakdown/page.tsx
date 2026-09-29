@@ -16,6 +16,10 @@ type Item = {
   unit: string;
   unitCost: number;
   actualCost: number;
+  ledgerActualQuantity?: number;
+  ledgerActualCost?: number;
+  ledgerQuantityVariance?: number;
+  ledgerCostVariance?: number;
 };
 
 type Section = {
