@@ -28,15 +28,16 @@ export async function GET(_request: NextRequest, { params }: Context) {
     const actualBySection = new Map<string, number>();
     const actualByBOQ = new Map<string, { quantity: number; amount: number }>();
     costs.forEach((cost) => {
-      if (cost.workSectionId) {
-        const sectionKey = String(cost.workSectionId);
-        actualBySection.set(sectionKey, (actualBySection.get(sectionKey) || 0) + Number(cost.amount || 0));
+      const row = cost as unknown as { workSectionId?: unknown; boqItemId?: unknown; quantity?: unknown; amount?: unknown };
+      if (row.workSectionId) {
+        const sectionKey = String(row.workSectionId);
+        actualBySection.set(sectionKey, (actualBySection.get(sectionKey) || 0) + Number(row.amount || 0));
       }
-      if (cost.boqItemId) {
-        const boqKey = String(cost.boqItemId);
+      if (row.boqItemId) {
+        const boqKey = String(row.boqItemId);
         const current = actualByBOQ.get(boqKey) || { quantity: 0, amount: 0 };
-        current.quantity += Number(cost.quantity || 0);
-        current.amount += Number(cost.amount || 0);
+        current.quantity += Number(row.quantity || 0);
+        current.amount += Number(row.amount || 0);
         actualByBOQ.set(boqKey, current);
       }
     });
@@ -44,7 +45,7 @@ export async function GET(_request: NextRequest, { params }: Context) {
     return NextResponse.json(sections.map((section) => ({
       ...section,
       ledgerActualCost: actualBySection.get(String(section._id)) || 0,
-      items: section.items.map((item) => {
+      items: (section.items as unknown as Array<Record<string, unknown>>).map((item) => {
         const actual = item.boqItemId ? actualByBOQ.get(String(item.boqItemId)) : undefined;
         return {
           ...item,
