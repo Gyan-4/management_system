@@ -4,8 +4,11 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, ChevronUp, Copy, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
+type BOQItem = { _id: string; itemNo: string; description: string; category: "Materials" | "Labor" | "Equipment" | "Other"; unit: string; quantity: number; unitCost: number; totalCost?: number };
+
 type Item = {
   _id?: string;
+  boqItemId?: string | null;
   description: string;
   category: "Material" | "Labor" | "Equipment" | "Other";
   calculation: string;
@@ -49,6 +52,7 @@ const emptyItem: Item = {
   unit: "",
   unitCost: 0,
   actualCost: 0,
+  boqItemId: null,
 };
 
 async function errorText(r: Response, fallback: string) {
@@ -64,6 +68,7 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
   const [projectId, setProjectId] = useState("");
   const [project, setProject] = useState<Project | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
+  const [boqItems, setBoqItems] = useState<BOQItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -84,17 +89,20 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
     if (!id) return;
     setLoading(true);
     try {
-      const [projectResponse, sectionsResponse] = await Promise.all([
+      const [projectResponse, sectionsResponse, boqResponse] = await Promise.all([
         fetch("/api/projects", { cache: "no-store" }),
         fetch(`/api/projects/${id}/sections`, { cache: "no-store" }),
+        fetch(`/api/boq?projectId=${id}`, { cache: "no-store" }),
       ]);
-      if (!projectResponse.ok || !sectionsResponse.ok) throw new Error("Could not load project breakdown.");
+      if (!projectResponse.ok || !sectionsResponse.ok || !boqResponse.ok) throw new Error("Could not load project breakdown.");
       const projects: Project[] = await projectResponse.json();
       const found = projects.find((p) => p._id === id);
       if (!found) throw new Error("Project not found.");
       const result = await sectionsResponse.json();
+      const boqResult = await boqResponse.json();
       setProject(found);
       setSections(Array.isArray(result) ? result : []);
+      setBoqItems(Array.isArray(boqResult) ? boqResult : []);
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load project breakdown.");
@@ -286,8 +294,8 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
                             <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-bold">{itemForm._id ? "Edit Item" : "Add Calculation / Cost Item"}</h3><button onClick={()=>setItemSection(null)}><X size={16}/></button></div>
                             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
                               <Field label="Description" value={itemForm.description} onChange={v=>setItemForm({...itemForm,description:v})} className="lg:col-span-2"/>
-                              <SelectField label="Category" value={itemForm.category} options={["Material","Labor","Equipment","Other"]} onChange={v=>setItemForm({...itemForm,category:v as Item["category"]})}/>
-                              <Field label="Unit" value={itemForm.unit} onChange={v=>setItemForm({...itemForm,unit:v})}/>
+                              <SelectField label="Category" value={itemForm.category} options={["Material","Labor","Equipment","Other"]} onChange={v=>setItemForm({...itemForm,category:v as Item["category"],boqItemId:null})}/>
+                              <Field label="Unit" value={itemForm.unit} onChange={v=>setItemForm({...itemForm,unit:v})}/><label className="block lg:col-span-2"><span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">BOQ Baseline</span><select value={itemForm.boqItemId || ""} onChange={e=>{const id=e.target.value;const b=boqItems.find(x=>x._id===id);setItemForm({...itemForm,boqItemId:id||null,unit:b?.unit||itemForm.unit,unitCost:b?.unitCost ?? itemForm.unitCost,description:b?.description || itemForm.description,quantity:b?.quantity ?? itemForm.quantity})}} className="mt-1.5 w-full border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"><option value="">No BOQ link</option>{boqItems.filter(b=>b.category===({Material:"Materials",Labor:"Labor",Equipment:"Equipment",Other:"Other"} as Record<string,string>)[itemForm.category]).map(b=><option key={b._id} value={b._id}>{b.itemNo} · {b.description} · {money(Number(b.totalCost ?? b.quantity*b.unitCost))}</option>)}</select></label>
                               <Field label="Calculation / Formula" value={itemForm.calculation} onChange={v=>setItemForm({...itemForm,calculation:v})} className="md:col-span-2"/>
                               <Field label="Quantity" type="number" value={String(itemForm.quantity)} onChange={v=>setItemForm({...itemForm,quantity:Number(v)})}/>
                               <Field label="Unit Cost" type="number" value={String(itemForm.unitCost)} onChange={v=>setItemForm({...itemForm,unitCost:Number(v)})}/>
@@ -299,9 +307,9 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
 
                         <div className="overflow-x-auto border border-slate-200 bg-white">
                           <table className="data-table min-w-[900px]">
-                            <thead><tr><th>Description</th><th>Category</th><th>Calculation</th><th className="text-right">Qty</th><th>Unit</th><th className="text-right">Unit Cost</th><th className="text-right">Estimated</th><th className="text-right">Actual</th><th></th></tr></thead>
+                            <thead><tr><th>BOQ</th><th>Description</th><th>Category</th><th>Calculation</th><th className="text-right">Qty</th><th>Unit</th><th className="text-right">Unit Cost</th><th className="text-right">Estimated</th><th className="text-right">Actual</th><th></th></tr></thead>
                             <tbody>
-                              {section.items.length ? section.items.map(item=><tr key={item._id}><td className="font-semibold">{item.description}</td><td>{item.category}</td><td className="text-xs text-slate-500">{item.calculation || "—"}</td><td className="text-right tabular-nums">{item.quantity}</td><td>{item.unit || "—"}</td><td className="text-right tabular-nums">{money(item.unitCost)}</td><td className="text-right font-semibold tabular-nums">{money(Number(item.quantity||0)*Number(item.unitCost||0))}</td><td className="text-right tabular-nums">{money(item.actualCost)}</td><td><div className="flex justify-end"><button title="Edit item" onClick={()=>editItem(section,item)} className="p-1.5 text-slate-400 hover:text-slate-800"><Pencil size={14}/></button><button title="Delete item" onClick={()=>removeItem(section,item._id)} className="p-1.5 text-slate-400 hover:text-red-600"><Trash2 size={14}/></button></div></td></tr>) : <tr><td colSpan={9} className="py-8 text-center text-sm text-slate-500">No calculation items yet.</td></tr>}
+                              {section.items.length ? section.items.map(item=><tr key={item._id}><td>{item.boqItemId ? (boqItems.find((b) => b._id === item.boqItemId)?.itemNo || "Linked") : "—"}</td><td className="font-semibold">{item.description}</td><td>{item.category}</td><td className="text-xs text-slate-500">{item.calculation || "—"}</td><td className="text-right tabular-nums">{item.quantity}</td><td>{item.unit || "—"}</td><td className="text-right tabular-nums">{money(item.unitCost)}</td><td className="text-right font-semibold tabular-nums">{money(Number(item.quantity||0)*Number(item.unitCost||0))}</td><td className="text-right tabular-nums">{money(item.actualCost)}</td><td><div className="flex justify-end"><button title="Edit item" onClick={()=>editItem(section,item)} className="p-1.5 text-slate-400 hover:text-slate-800"><Pencil size={14}/></button><button title="Delete item" onClick={()=>removeItem(section,item._id)} className="p-1.5 text-slate-400 hover:text-red-600"><Trash2 size={14}/></button></div></td></tr>) : <tr><td colSpan={10} className="py-8 text-center text-sm text-slate-500">No calculation items yet.</td></tr>}
                             </tbody>
                             <tfoot><tr><td colSpan={6} className="text-right font-bold">Section Total</td><td className="text-right font-bold">{money(estimated)}</td><td className="text-right font-bold">{money(actual)}</td><td/></tr></tfoot>
                           </table>
