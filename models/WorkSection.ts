@@ -3,6 +3,7 @@ import mongoose, { Schema, models } from "mongoose";
 const WorkItemSchema = new Schema(
   {
     description: { type: String, required: true, trim: true },
+    boqItemId: { type: Schema.Types.ObjectId, ref: "BOQItem", default: null },
     category: {
       type: String,
       enum: ["Material", "Labor", "Equipment", "Other"],
