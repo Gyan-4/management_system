@@ -35,6 +35,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const actualCost = Number(linkedActualCost[0]?.amount || 0);
     const newPlannedCost = quantity * unitCost;
 
+    const project = await (await import("@/models/Project")).default.findById(existing.projectId).select("budget").lean();
+    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+
+    const currentProjectBOQ = await BOQItem.aggregate([
+      { $match: { projectId: existing.projectId, _id: { $ne: existing._id } } },
+      { $group: { _id: null, total: { $sum: "$totalCost" } } },
+    ]);
+    const projectedBOQTotal = Number(currentProjectBOQ[0]?.total || 0) + newPlannedCost;
+    if (projectedBOQTotal > Number(project.budget)) {
+      return NextResponse.json(
+        { error: `Updated BOQ total would exceed the project budget by ${projectedBOQTotal - Number(project.budget)}.` },
+        { status: 409 }
+      );
+    }
+
     if (actualCost > newPlannedCost) {
       return NextResponse.json(
         { error: `Planned BOQ cost cannot be reduced below recorded actual cost of ${actualCost}.` },
