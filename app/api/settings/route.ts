@@ -1,13 +1,25 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { connectDB } from "@/lib/mongodb";
+import { verifySession } from "@/lib/auth";
 import CompanySettings from "@/models/CompanySettings";
 
+async function requireAdmin() {
+  const token = (await cookies()).get("constructflow_session")?.value;
+  const session = token ? verifySession(token) : null;
+  return session?.role === "Admin" ? session : null;
+}
+
 export async function GET() {
+  if (!(await requireAdmin())) {
+    return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
+  }
+
   try {
     await connectDB();
     const settings = await CompanySettings.findOne({ key: "default" }).lean();
     return NextResponse.json(
-      settings || { key: "default", name: "", address: "", engineer: "", contact: "" }
+      settings || { key: "default", name: "", address: "", engineer: "", contact: "" },
     );
   } catch (error) {
     console.error("GET /api/settings", error);
@@ -16,6 +28,10 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  if (!(await requireAdmin())) {
+    return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
     const values = {
@@ -29,7 +45,7 @@ export async function PUT(request: Request) {
     const settings = await CompanySettings.findOneAndUpdate(
       { key: "default" },
       { $set: values, $setOnInsert: { key: "default" } },
-      { new: true, upsert: true, runValidators: true }
+      { new: true, upsert: true, runValidators: true },
     ).lean();
 
     return NextResponse.json(settings);
