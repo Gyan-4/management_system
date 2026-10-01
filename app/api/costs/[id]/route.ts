@@ -39,6 +39,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (quantity < 0 || unitCost < 0 || enteredAmount < 0) return NextResponse.json({ error: "Cost values must be non-negative numbers" }, { status: 400 });
 
     const amount = category === "Expense" ? enteredAmount : quantity * unitCost;
+    if (!Number.isFinite(amount)) return NextResponse.json({ error: "Calculated amount is invalid" }, { status: 400 });
+
+    const parsedDate = new Date(date);
+    if (Number.isNaN(parsedDate.getTime())) return NextResponse.json({ error: "Cost date must be a valid date" }, { status: 400 });
+
     await connectDB();
     const existing = await CostEntry.findById(id).lean();
     if (!existing) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
