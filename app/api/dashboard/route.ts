@@ -40,6 +40,7 @@ export async function GET() {
       const physicalProgress = Math.min(100, Math.max(0, finite(latestProgress?.percentage)));
       const financialProgress = contractAmount > 0 ? (actualCost / contractAmount) * 100 : 0;
       const budgetUtilization = budget > 0 ? (actualCost / budget) * 100 : 0;
+      const boqUtilization = boqTotal > 0 ? (actualCost / boqTotal) * 100 : 0;
 
       return {
         _id: project._id,
@@ -54,6 +55,7 @@ export async function GET() {
         variance: boqTotal - actualCost,
         projectedProfit: contractAmount - actualCost,
         budgetUtilization,
+        boqUtilization,
         physicalProgress,
         financialProgress,
         progressGap: financialProgress - physicalProgress,
