@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowUpRight, ClipboardList, DollarSign, Plus, Wallet, RefreshCw } from "lucide-react";
 
-type Project = { _id: string; name: string; client?: string; budget: number; contractAmount: number; status: string; actualCost: number; remainingBudget: number; budgetUtilization: number; projectedProfit: number; physicalProgress: number; financialProgress: number; progressGap: number };
+type Project = { _id: string; name: string; client?: string; budget: number; contractAmount: number; status: string; actualCost: number; remainingBudget: number; budgetUtilization: number; boqUtilization: number; projectedProfit: number; physicalProgress: number; financialProgress: number; progressGap: number };
 type Dashboard = { projects: Project[]; totals: { contract: number; budget: number; actual: number; boq: number; remainingBudget: number; projectedProfit: number; physicalProgress: number; financialProgress: number } };
 
 const money = (n: number) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(n);
