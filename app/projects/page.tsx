@@ -37,7 +37,11 @@ export default function ProjectsPage() {
     finally { setLoading(false); }
   }
 
-  useEffect(() => {\n    loadProjects();\n    fetch("/api/auth/me", { cache: "no-store" }).then(r=>r.ok?r.json():null).then(d=>setUser(d?.user || null)).catch(()=>{});\n    fetch("/api/project-managers", { cache: "no-store" }).then(r=>r.ok?r.json():{users:[]}).then(d=>setManagers(d.users||[])).catch(()=>{});\n  }, []);
+  useEffect(() => {
+    loadProjects();
+    fetch("/api/auth/me", { cache: "no-store" }).then(r=>r.ok?r.json():null).then(d=>setUser(d?.user || null)).catch(()=>{});
+    fetch("/api/project-managers", { cache: "no-store" }).then(r=>r.ok?r.json():{users:[]}).then(d=>setManagers(d.users||[])).catch(()=>{});
+  }, []);
 
   function openCreate() { setEditing(null); setForm(emptyForm); setError(""); setOpen(true); }
   function openEdit(p: Project) {
