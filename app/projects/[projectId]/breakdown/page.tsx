@@ -247,14 +247,16 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
 
         {error && <div className="mt-5 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
-        <section className="mt-6 grid gap-px border border-slate-200 bg-slate-200 sm:grid-cols-2 lg:grid-cols-5">
+        <section className="mt-6 grid gap-px border border-slate-200 bg-slate-200 sm:grid-cols-2 lg:grid-cols-6">
           <Summary label="BOQ Baseline" value={money(totals.boqBaseline)} />
           <Summary label="Section Estimate" value={money(totals.estimated)} />
           <Summary label="Actual Cost" value={money(totals.actual)} />
           <Summary label="Remaining Cost" value={money(totals.remaining)} />
           <Summary label="Overall Progress" value={`${totals.progress.toFixed(0)}%`} />
+          <Summary label="Budget Headroom" value={money((project?.budget || 0) - totals.actual)} />
         </section>
         <div className={`mt-3 border px-4 py-3 text-xs ${totals.estimateVariance < 0 ? "border-red-200 bg-red-50 text-red-800" : "border-slate-200 bg-white text-slate-600"}`}>
+
           <span className="font-bold">BOQ to section control:</span> {totals.estimateVariance >= 0 ? `${money(totals.estimateVariance)} of BOQ baseline is not yet represented in work-section estimates.` : `${money(Math.abs(totals.estimateVariance))} of section estimates exceed the BOQ baseline.`}
         </div>
 
