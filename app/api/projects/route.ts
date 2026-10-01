@@ -2,12 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Project from "@/models/Project";
 import WorkSection from "@/models/WorkSection";
+import ProjectProgress from "@/models/ProjectProgress";
 
 export async function GET() {
   try {
     await connectDB();
     const projects = await Project.find().sort({ createdAt: -1 }).lean();
-    return NextResponse.json(projects);
+    const progress = await ProjectProgress.find({ projectId: { $in: projects.map((p) => p._id) } }).sort({ progressDate: -1 }).lean();
+    const latestByProject = new Map<string, number>();
+    for (const record of progress) {
+      const key = String(record.projectId);
+      if (!latestByProject.has(key)) latestByProject.set(key, Number(record.percentage) || 0);
+    }
+    return NextResponse.json(projects.map((project) => ({
+      ...project,
+      physicalProgress: latestByProject.get(String(project._id)) ?? 0,
+    })));
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to fetch projects" }, { status: 500 });
