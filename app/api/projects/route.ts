@@ -5,6 +5,7 @@ import Project from "@/models/Project";
 import WorkSection from "@/models/WorkSection";
 import CostEntry from "@/models/CostEntry";
 import User from "@/models/User";
+import { getSession, canManageAllProjects } from "@/lib/session";
 
 const finite = (value: unknown, fallback = 0) => {
   const number = Number(value);
@@ -43,8 +44,11 @@ async function resolveManager(value: unknown) {
 
 export async function GET() {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     await connectDB();
-    const projects = await Project.find().sort({ createdAt: -1 }).lean();
+    const projectFilter = canManageAllProjects(session.role) ? {} : { projectManagerId: session.id };
+    const projects = await Project.find(projectFilter).sort({ createdAt: -1 }).lean();
     const projectIds = projects.map((project) => project._id);
     const [sections, costEntries] = await Promise.all([
       WorkSection.find({ projectId: { $in: projectIds } }).lean(),
@@ -81,6 +85,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!["Admin", "Project Manager"].includes(session.role)) return NextResponse.json({ error: "Only Admin or Project Manager users can create projects" }, { status: 403 });
     const body = await request.json();
     const name = String(body.name || "").trim();
     const client = String(body.client || "").trim();
@@ -99,7 +106,10 @@ export async function POST(request: NextRequest) {
     if (endDate < startDate) return NextResponse.json({ error: "End date cannot be earlier than start date" }, { status: 400 });
 
     await connectDB();
-    const manager = await resolveManager(body.projectManagerId);
+    const requestedManagerId = String(body.projectManagerId || "").trim();
+    const manager = session.role === "Project Manager"
+      ? await resolveManager(session.id)
+      : await resolveManager(requestedManagerId);
     const project = await Project.create({
       name, client, location: String(body.location || "").trim(), contractAmount, budget,
       startDate, endDate, status, projectManager: manager.name,
