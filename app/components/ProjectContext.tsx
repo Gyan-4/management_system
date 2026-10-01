@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-type Project = { _id: string; name: string; budget: number };
+type Project = { _id: string; name: string; budget: number; projectCompletion?: number };
 type ProjectContextValue = {
   projects: Project[];
   projectId: string;
