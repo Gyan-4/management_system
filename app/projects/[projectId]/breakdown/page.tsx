@@ -125,7 +125,8 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
     const weightedProgress = estimated
       ? sections.reduce((sum, s) => sum + (s.items.reduce((a, i) => a + Number(i.quantity || 0) * Number(i.unitCost || 0), 0) * Number(s.progress || 0)), 0) / estimated
       : sections.length ? sections.reduce((sum, s) => sum + Number(s.progress || 0), 0) / sections.length : 0;
-    return { estimated, actual, remaining: Math.max(estimated - actual, 0), progress: weightedProgress };
+    const boqBaseline = boqItems.reduce((sum, item) => sum + Number(item.totalCost ?? Number(item.quantity || 0) * Number(item.unitCost || 0)), 0);
+    return { estimated, actual, remaining: Math.max(estimated - actual, 0), progress: weightedProgress, boqBaseline, estimateVariance: boqBaseline - estimated };
   }, [sections]);
 
   async function createSection() {
@@ -244,12 +245,16 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
 
         {error && <div className="mt-5 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
-        <section className="mt-6 grid gap-px border border-slate-200 bg-slate-200 sm:grid-cols-2 lg:grid-cols-4">
-          <Summary label="Estimated Cost" value={money(totals.estimated)} />
+        <section className="mt-6 grid gap-px border border-slate-200 bg-slate-200 sm:grid-cols-2 lg:grid-cols-5">
+          <Summary label="BOQ Baseline" value={money(totals.boqBaseline)} />
+          <Summary label="Section Estimate" value={money(totals.estimated)} />
           <Summary label="Actual Cost" value={money(totals.actual)} />
           <Summary label="Remaining Cost" value={money(totals.remaining)} />
           <Summary label="Overall Progress" value={`${totals.progress.toFixed(0)}%`} />
         </section>
+        <div className={`mt-3 border px-4 py-3 text-xs ${totals.estimateVariance < 0 ? "border-red-200 bg-red-50 text-red-800" : "border-slate-200 bg-white text-slate-600"}`}>
+          <span className="font-bold">BOQ to section control:</span> {totals.estimateVariance >= 0 ? `${money(totals.estimateVariance)} of BOQ baseline is not yet represented in work-section estimates.` : `${money(Math.abs(totals.estimateVariance))} of section estimates exceed the BOQ baseline.`}
+        </div>
 
         <section className="mt-6 border border-slate-200 bg-white">
           <div className="flex flex-col justify-between gap-3 border-b border-slate-200 px-5 py-4 md:flex-row md:items-center">
