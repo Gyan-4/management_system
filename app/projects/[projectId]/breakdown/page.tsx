@@ -40,6 +40,7 @@ type Project = {
   location?: string;
   contractAmount: number;
   budget: number;
+  projectCompletion?: number;
 };
 
 const money = (n: number) => new Intl.NumberFormat("en-PH", {
@@ -235,6 +236,7 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
               <div className="text-[10px] font-bold uppercase tracking-[.16em] text-blue-600">Project Breakdown</div>
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{project?.name}</h1>
               <p className="mt-1 text-sm text-slate-500">{project?.client}{project?.location ? ` · ${project.location}` : ""}</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold"><span className="border border-slate-200 bg-slate-50 px-2.5 py-1.5">Contract: {money(project?.contractAmount || 0)}</span><span className="border border-slate-200 bg-slate-50 px-2.5 py-1.5">Budget: {money(project?.budget || 0)}</span><span className="border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-blue-700">Project Completion: {Math.min(100, Math.max(0, Number(project?.projectCompletion || 0))).toFixed(1)}%</span></div>
             </div>
             <div className="flex flex-wrap gap-2">
               <button onClick={createSection} className="inline-flex items-center gap-2 bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700"><Plus size={16}/> Add Work Section</button>
@@ -323,7 +325,7 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
                             <tbody>
                               {section.items.length ? section.items.map(item=><tr key={item._id}><td>{item.boqItemId ? (boqItems.find((b) => b._id === item.boqItemId)?.itemNo || "Linked") : "—"}</td><td className="font-semibold">{item.description}</td><td>{item.category}</td><td className="tabular-nums">{Number(item.quantity || 0).toLocaleString()} {item.unit}</td><td className="font-semibold tabular-nums">{item.boqItemId ? `${Number(item.ledgerActualQuantity || 0).toLocaleString()} ${item.unit}` : "—"}</td><td className={`font-semibold tabular-nums ${(item.ledgerQuantityVariance || 0) < 0 ? "text-red-600" : "text-slate-700"}`}>{item.boqItemId ? `${Number(item.ledgerQuantityVariance || 0).toLocaleString()} ${item.unit}` : "—"}</td><td className="text-xs text-slate-500">{item.calculation || "—"}</td><td className="text-right tabular-nums">{item.quantity}</td><td>{item.unit || "—"}</td><td className="text-right tabular-nums">{money(item.unitCost)}</td><td className="text-right font-semibold tabular-nums">{money(Number(item.quantity||0)*Number(item.unitCost||0))}</td><td className="text-right tabular-nums">{money(item.actualCost)}</td><td><div className="flex justify-end"><button title="Edit item" onClick={()=>editItem(section,item)} className="p-1.5 text-slate-400 hover:text-slate-800"><Pencil size={14}/></button><button title="Delete item" onClick={()=>removeItem(section,item._id)} className="p-1.5 text-slate-400 hover:text-red-600"><Trash2 size={14}/></button></div></td></tr>) : <tr><td colSpan={13} className="py-8 text-center text-sm text-slate-500">No calculation items yet.</td></tr>}
                             </tbody>
-                            <tfoot><tr><td colSpan={6} className="text-right font-bold">Section Total</td><td className="text-right font-bold">{money(estimated)}</td><td className="text-right font-bold">{money(actual)}</td><td/></tr></tfoot>
+                            <tfoot><tr><td colSpan={10} className="text-right font-bold">Section Total</td><td className="text-right font-bold">{money(estimated)}</td><td className="text-right font-bold">{money(actual)}</td><td/></tr></tfoot>
                           </table>
                         </div>
                       </div>
