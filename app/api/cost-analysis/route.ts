@@ -22,6 +22,11 @@ type WorkSectionRow = {
   items: WorkItem[];
 };
 
+const finite = (value: unknown, fallback = 0) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const projectId = request.nextUrl.searchParams.get("projectId");
@@ -46,43 +51,47 @@ export async function GET(request: NextRequest) {
     actual.forEach((entry) => {
       if (entry.workSectionId) {
         const key = String(entry.workSectionId);
-        actualBySection.set(key, (actualBySection.get(key) || 0) + Number(entry.amount || 0));
+        actualBySection.set(key, (actualBySection.get(key) || 0) + finite(entry.amount));
       }
     });
 
     const sectionBreakdown = sectionRows.map((section) => {
-      const estimated = section.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitCost || 0), 0);
-      const manualActual = section.items.reduce((sum, item) => sum + Number(item.actualCost || 0), 0);
+      const estimated = section.items.reduce((sum, item) => sum + finite(item.quantity) * finite(item.unitCost), 0);
+      const manualActual = section.items.reduce((sum, item) => sum + finite(item.actualCost), 0);
       const linkedActual = actualBySection.get(String(section._id));
       const actualCost = linkedActual !== undefined ? linkedActual : manualActual;
+      const progress = Math.min(100, Math.max(0, finite(section.progress)));
+
       return {
         id: String(section._id),
         name: section.name,
         status: section.status,
-        progress: Number(section.progress || 0),
+        progress,
         estimated,
         actual: actualCost,
         remaining: estimated - actualCost,
       };
     });
 
-    const sectionEstimatedTotal = sectionBreakdown.reduce((sum, section) => sum + section.estimated, 0);
     const sectionActualTotal = sectionBreakdown.reduce((sum, section) => sum + section.actual, 0);
 
     const estimate = { Materials: 0, Labor: 0, Equipment: 0, Other: 0 };
     boq.forEach((item) => {
-      estimate[item.category as keyof typeof estimate] += item.quantity * item.unitCost;
+      const category = item.category as keyof typeof estimate;
+      if (category in estimate) estimate[category] += finite(item.quantity) * finite(item.unitCost);
     });
 
     const spent = { Material: 0, Labor: 0, Equipment: 0, Expense: 0 };
     const actualByBOQ = new Map<string, { quantity: number; amount: number }>();
     actual.forEach((item) => {
-      spent[item.category as keyof typeof spent] += item.amount;
+      const category = item.category as keyof typeof spent;
+      if (category in spent) spent[category] += finite(item.amount);
+
       if (item.boqItemId) {
         const key = String(item.boqItemId);
         const current = actualByBOQ.get(key) || { quantity: 0, amount: 0 };
-        current.quantity += Number(item.quantity || 0);
-        current.amount += Number(item.amount || 0);
+        current.quantity += finite(item.quantity);
+        current.amount += finite(item.amount);
         actualByBOQ.set(key, current);
       }
     });
@@ -90,15 +99,20 @@ export async function GET(request: NextRequest) {
     const estimatedTotal = Object.values(estimate).reduce((a, b) => a + b, 0);
     const costEntryActualTotal = Object.values(spent).reduce((a, b) => a + b, 0);
     const actualTotal = costEntryActualTotal > 0 ? costEntryActualTotal : sectionActualTotal;
-    const physicalProgress = progress?.percentage ?? 0;
-    const financialProgress = project.contractAmount > 0 ? (actualTotal / project.contractAmount) * 100 : 0;
-    const budgetUtilization = project.budget > 0 ? (actualTotal / project.budget) * 100 : 0;
+    const physicalProgress = Math.min(100, Math.max(0, finite(progress?.percentage)));
+    const contractAmount = Math.max(0, finite(project.contractAmount));
+    const budget = Math.max(0, finite(project.budget));
+    const financialProgress = contractAmount > 0 ? (actualTotal / contractAmount) * 100 : 0;
+    const budgetUtilization = budget > 0 ? (actualTotal / budget) * 100 : 0;
     const progressGap = financialProgress - physicalProgress;
 
     const boqLineAnalysis = boq.map((item) => {
       const actualLine = actualByBOQ.get(String(item._id)) || { quantity: 0, amount: 0 };
-      const plannedQuantity = Number(item.quantity || 0);
-      const plannedCost = Number(item.totalCost ?? plannedQuantity * Number(item.unitCost || 0));
+      const plannedQuantity = Math.max(0, finite(item.quantity));
+      const plannedCost = Math.max(0, finite(item.totalCost ?? plannedQuantity * finite(item.unitCost)));
+      const actualQuantity = actualLine.quantity;
+      const actualCost = actualLine.amount;
+
       return {
         id: String(item._id),
         itemNo: item.itemNo,
@@ -106,12 +120,12 @@ export async function GET(request: NextRequest) {
         category: item.category,
         unit: item.unit,
         plannedQuantity,
-        actualQuantity: actualLine.quantity,
-        quantityVariance: plannedQuantity - actualLine.quantity,
+        actualQuantity,
+        quantityVariance: plannedQuantity - actualQuantity,
         plannedCost,
-        actualCost: actualLine.amount,
-        costVariance: plannedCost - actualLine.amount,
-        utilization: plannedQuantity > 0 ? (actualLine.quantity / plannedQuantity) * 100 : 0,
+        actualCost,
+        costVariance: plannedCost - actualCost,
+        utilization: plannedQuantity > 0 ? (actualQuantity / plannedQuantity) * 100 : 0,
       };
     });
 
@@ -122,8 +136,8 @@ export async function GET(request: NextRequest) {
       estimatedTotal,
       actualTotal,
       variance: estimatedTotal - actualTotal,
-      budgetRemaining: project.budget - actualTotal,
-      projectedProfit: project.contractAmount - actualTotal,
+      budgetRemaining: budget - actualTotal,
+      projectedProfit: contractAmount - actualTotal,
       physicalProgress,
       financialProgress,
       budgetUtilization,
