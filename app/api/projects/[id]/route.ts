@@ -7,6 +7,7 @@ import CostEntry from "@/models/CostEntry";
 import ProjectProgress from "@/models/ProjectProgress";
 import WorkSection from "@/models/WorkSection";
 import User from "@/models/User";
+import { getSession, canManageAllProjects } from "@/lib/session";
 
 async function resolveManager(value: unknown) {
   const id = String(value || "").trim();
@@ -20,6 +21,8 @@ async function resolveManager(value: unknown) {
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (!mongoose.Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Invalid project id" }, { status: 400 });
     const body = await request.json();
     const contractAmount = Number(body.contractAmount);
@@ -38,7 +41,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (endDate < startDate) return NextResponse.json({ error: "End date cannot be earlier than start date" }, { status: 400 });
 
     await connectDB();
-    const manager = await resolveManager(body.projectManagerId);
+    const existing = await Project.findById(id).lean();
+    if (!existing) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    if (!canManageAllProjects(session.role) && String(existing.projectManagerId || "") !== session.id) return NextResponse.json({ error: "You can only edit projects assigned to you" }, { status: 403 });
+    if (!["Admin", "Project Manager"].includes(session.role)) return NextResponse.json({ error: "You do not have permission to edit project records" }, { status: 403 });
+    const requestedManagerId = String(body.projectManagerId || "").trim();
+    if (session.role === "Project Manager" && requestedManagerId && requestedManagerId !== session.id) return NextResponse.json({ error: "Project Managers cannot reassign a project to another user" }, { status: 403 });
+    const manager = session.role === "Project Manager" ? await resolveManager(session.id) : await resolveManager(requestedManagerId);
     const project = await Project.findByIdAndUpdate(id, {
       name: body.name.trim(), client: body.client.trim(), location: body.location?.trim() || "",
       contractAmount, budget, startDate, endDate, status,
@@ -57,6 +66,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (session.role !== "Admin") return NextResponse.json({ error: "Only Admin users can delete projects" }, { status: 403 });
     if (!mongoose.Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Invalid project id" }, { status: 400 });
     await connectDB();
     const project = await Project.findByIdAndDelete(id);
