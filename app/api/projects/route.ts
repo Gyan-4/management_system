@@ -2,22 +2,67 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Project from "@/models/Project";
 import WorkSection from "@/models/WorkSection";
-import ProjectProgress from "@/models/ProjectProgress";
+
+const finite = (value: unknown, fallback = 0) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
+
+function calculateProjectCompletion(sections: Array<{ progress?: number; items?: Array<{ quantity?: number; unitCost?: number }> }>) {
+  if (!sections.length) return 0;
+
+  let totalEstimated = 0;
+  let weightedProgress = 0;
+
+  for (const section of sections) {
+    const estimate = (section.items || []).reduce(
+      (sum, item) => sum + Math.max(0, finite(item.quantity)) * Math.max(0, finite(item.unitCost)),
+      0,
+    );
+    const progress = Math.min(100, Math.max(0, finite(section.progress)));
+
+    totalEstimated += estimate;
+    weightedProgress += estimate * progress;
+  }
+
+  if (totalEstimated > 0) {
+    return Math.min(100, Math.max(0, weightedProgress / totalEstimated));
+  }
+
+  return Math.min(
+    100,
+    Math.max(
+      0,
+      sections.reduce((sum, section) => sum + Math.min(100, Math.max(0, finite(section.progress))), 0) / sections.length,
+    ),
+  );
+}
 
 export async function GET() {
   try {
     await connectDB();
+
     const projects = await Project.find().sort({ createdAt: -1 }).lean();
-    const progress = await ProjectProgress.find({ projectId: { $in: projects.map((p) => p._id) } }).sort({ progressDate: -1 }).lean();
-    const latestByProject = new Map<string, number>();
-    for (const record of progress) {
-      const key = String(record.projectId);
-      if (!latestByProject.has(key)) latestByProject.set(key, Number(record.percentage) || 0);
+    const sections = await WorkSection.find({
+      projectId: { $in: projects.map((project) => project._id) },
+    }).lean();
+
+    const sectionsByProject = new Map<string, typeof sections>();
+    for (const section of sections) {
+      const key = String(section.projectId);
+      const existing = sectionsByProject.get(key) || [];
+      existing.push(section);
+      sectionsByProject.set(key, existing);
     }
-    return NextResponse.json(projects.map((project) => ({
-      ...project,
-      physicalProgress: latestByProject.get(String(project._id)) ?? 0,
-    })));
+
+    return NextResponse.json(
+      projects.map((project) => ({
+        ...project,
+        projectCompletion: calculateProjectCompletion(
+          sectionsByProject.get(String(project._id)) || [],
+        ),
+      })),
+    );
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to fetch projects" }, { status: 500 });
