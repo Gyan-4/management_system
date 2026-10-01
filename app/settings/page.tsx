@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Check,
@@ -54,6 +55,7 @@ const emptyUser = {
 };
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [company, setCompany] = useState<CompanySettings>(emptySettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -70,8 +72,25 @@ export default function SettingsPage() {
   const [userFormOpen, setUserFormOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [userForm, setUserForm] = useState(emptyUser);
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
 
   useEffect(() => {
+    async function checkAccess() {
+      try {
+        const response = await fetch("/api/auth/me", { cache: "no-store" });
+        const data = await response.json();
+        if (data.user?.role !== "Admin") {
+          router.replace("/");
+          return false;
+        }
+        setAuthorized(true);
+        return true;
+      } catch {
+        router.replace("/");
+        return false;
+      }
+    }
+
     async function load() {
       try {
         const response = await fetch("/api/settings", { cache: "no-store" });
@@ -90,9 +109,13 @@ export default function SettingsPage() {
       }
     }
 
-    void load();
-    void checkDatabase();
-    void loadUsers();
+    void (async () => {
+      if (await checkAccess()) {
+        await load();
+        await checkDatabase();
+        await loadUsers();
+      }
+    })();
   }, []);
 
   async function checkDatabase() {
@@ -212,6 +235,16 @@ export default function SettingsPage() {
     } finally {
       setUserSaving(false);
     }
+  }
+
+  if (authorized !== true) {
+    return (
+      <main className="min-h-screen p-5 md:p-8">
+        <div className="mx-auto flex min-h-[60vh] max-w-5xl items-center justify-center text-sm text-slate-500">
+          Checking administrator access...
+        </div>
+      </main>
+    );
   }
 
   return (
