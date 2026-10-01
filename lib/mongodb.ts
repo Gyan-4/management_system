@@ -9,6 +9,8 @@ declare global {
 const cached = global.mongooseCache ?? { conn: null, promise: null };
 global.mongooseCache = cached;
 
+const DATABASE_NAME = process.env.MONGODB_DB_NAME || "construction_management";
+
 export async function connectDB() {
   const uri = process.env.MONGODB_URI;
 
@@ -21,6 +23,7 @@ export async function connectDB() {
   if (!cached.promise) {
     cached.promise = mongoose.connect(uri, {
       bufferCommands: false,
+      dbName: DATABASE_NAME,
     });
   }
 
