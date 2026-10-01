@@ -273,16 +273,19 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
                 const estimated = section.items.reduce((a, i) => a + Number(i.quantity || 0) * Number(i.unitCost || 0), 0);
                 const manualActual = section.items.reduce((a, i) => a + Number(i.actualCost || 0), 0);
                 const actual = Number(section.ledgerActualCost || 0) > 0 ? Number(section.ledgerActualCost) : manualActual;
+                const variance = estimated - actual;
+                const boqLinkedEstimate = section.items.reduce((a, i) => a + (i.boqItemId ? Number(i.quantity || 0) * Number(i.unitCost || 0) : 0), 0);
                 const isOpen = !!open[section._id];
                 return (
                   <article key={section._id}>
                     <div className="grid gap-4 px-5 py-5 lg:grid-cols-[1fr_170px_180px_170px_auto] lg:items-center">
                       <button onClick={()=>setOpen(v=>({...v,[section._id]:!isOpen}))} className="text-left">
                         <div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-400">{String(section.order + 1).padStart(2,"0")}</span><span className="font-bold text-slate-900">{section.name}</span>{isOpen?<ChevronUp size={15}/>:<ChevronDown size={15}/>}</div>
-                        <div className="mt-2 h-1.5 w-full max-w-md bg-slate-100"><div className="h-full bg-blue-600" style={{width:`${Math.max(0,Math.min(100,section.progress))}%`}}/></div><div className="mt-1 text-[10px] text-slate-400">{section.ledgerActualCost ? "Actual from cost ledger" : "Manual section actual"}</div>
+                        <div className="mt-2 h-1.5 w-full max-w-md bg-slate-100"><div className="h-full bg-blue-600" style={{width:`${Math.max(0,Math.min(100,section.progress))}%`}}/></div><div className="mt-1 text-[10px] text-slate-400">{section.ledgerActualCost ? "Actual from cost ledger" : "Manual section actual"} · {money(boqLinkedEstimate)} BOQ-linked estimate</div>
                       </button>
                       <Metric label="Estimated" value={money(estimated)} />
                       <Metric label="Actual" value={money(actual)} />
+                      <Metric label="Variance" value={money(variance)} />
                       <Metric label="Progress" value={`${section.progress}%`} />
                       <div className="flex justify-end gap-1">
                         <button title="Edit section" onClick={()=>setEditing({...section,items:section.items.map(i=>({...i}))})} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-800"><Pencil size={15}/></button>
