@@ -104,6 +104,7 @@ export async function GET(request: NextRequest) {
     const budget = Math.max(0, finite(project.budget));
     const financialProgress = contractAmount > 0 ? (actualTotal / contractAmount) * 100 : 0;
     const budgetUtilization = budget > 0 ? (actualTotal / budget) * 100 : 0;
+    const boqUtilization = estimatedTotal > 0 ? (actualTotal / estimatedTotal) * 100 : 0;
     const progressGap = financialProgress - physicalProgress;
 
     const boqLineAnalysis = boq.map((item) => {
@@ -141,6 +142,7 @@ export async function GET(request: NextRequest) {
       physicalProgress,
       financialProgress,
       budgetUtilization,
+      boqUtilization,
       progressGap,
       progressStatus:
         progressGap > 10
