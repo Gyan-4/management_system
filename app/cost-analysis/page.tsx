@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, BarChart3, CheckCircle2, CircleDollarSign, FileBarChart2, RefreshCw, WalletCards } from "lucide-react";
 import type { ReactNode } from "react";
@@ -110,8 +111,8 @@ export default function CostAnalysisPage() {
               </div>
               <table className="data-table min-w-[850px]">
                 <thead><tr><th>Work Section</th><th>Status</th><th className="text-right">Progress</th><th className="text-right">Estimated</th><th className="text-right">Actual</th><th className="text-right">Remaining</th></tr></thead>
-                <tbody>{data.sectionBreakdown.map(section => <tr key={section.id}><td className="font-semibold text-slate-800">{section.name}</td><td>{section.status}</td><td className="text-right tabular-nums">{section.progress}%</td><td className="text-right tabular-nums">{money(section.estimated)}</td><td className="text-right tabular-nums">{money(section.actual)}</td><td className="text-right font-semibold tabular-nums">{money(section.remaining)}</td></tr>)}</tbody>
-                {data.sectionBreakdown.length > 0 && <tfoot><tr><td colSpan={3} className="text-right font-bold">TOTAL</td><td className="text-right font-bold">{money(data.sectionBreakdown.reduce((sum, s) => sum + s.estimated, 0))}</td><td className="text-right font-bold">{money(data.sectionBreakdown.reduce((sum, s) => sum + s.actual, 0))}</td><td className="text-right font-bold">{money(data.sectionBreakdown.reduce((sum, s) => sum + s.remaining, 0))}</td></tr></tfoot>}
+                <tbody>{data.sectionBreakdown.map(section => <tr key={section.id}><td className="font-semibold text-slate-800"><Link href={`/projects/${projectId}/breakdown`} className="hover:text-blue-700 hover:underline">{section.name}</Link></td><td>{section.status}</td><td className="text-right tabular-nums">{section.progress}%</td><td className="text-right tabular-nums">{money(section.estimated)}</td><td className="text-right tabular-nums">{money(section.actual)}</td><td className={`text-right font-semibold tabular-nums ${section.remaining < 0 ? "text-red-600" : "text-slate-800"}`}>{money(section.remaining)}</td></tr>)}</tbody>
+                {data.sectionBreakdown.length > 0 && <tfoot><tr><td colSpan={3} className="text-right font-bold">TOTAL</td><td className="text-right font-bold">{money(data.sectionBreakdown.reduce((sum, s) => sum + s.estimated, 0))}</td><td className="text-right font-bold">{money(data.sectionBreakdown.reduce((sum, s) => sum + s.actual, 0))}</td><td className={`text-right font-bold ${data.sectionBreakdown.reduce((sum, s) => sum + s.remaining, 0) < 0 ? "text-red-600" : "text-slate-900"}`}>{money(data.sectionBreakdown.reduce((sum, s) => sum + s.remaining, 0))}</td></tr></tfoot>}
               </table>
             </section>
 
