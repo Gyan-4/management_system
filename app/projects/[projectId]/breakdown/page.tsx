@@ -126,8 +126,8 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
       ? sections.reduce((sum, s) => sum + (s.items.reduce((a, i) => a + Number(i.quantity || 0) * Number(i.unitCost || 0), 0) * Number(s.progress || 0)), 0) / estimated
       : sections.length ? sections.reduce((sum, s) => sum + Number(s.progress || 0), 0) / sections.length : 0;
     const boqBaseline = boqItems.reduce((sum, item) => sum + Number(item.totalCost ?? Number(item.quantity || 0) * Number(item.unitCost || 0)), 0);
-    return { estimated, actual, remaining: Math.max(estimated - actual, 0), progress: weightedProgress, boqBaseline, estimateVariance: boqBaseline - estimated };
-  }, [sections]);
+    return { estimated, actual, remaining: estimated - actual, progress: weightedProgress, boqBaseline, estimateVariance: boqBaseline - estimated };
+  }, [sections, boqItems]);
 
   async function createSection() {
     const name = window.prompt("Work section name", "New Work Section");
@@ -285,7 +285,7 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
                       </button>
                       <Metric label="Estimated" value={money(estimated)} />
                       <Metric label="Actual" value={money(actual)} />
-                      <Metric label="Variance" value={money(variance)} />
+                      <Metric label="Variance" value={money(variance)} danger={variance < 0} />
                       <Metric label="Progress" value={`${section.progress}%`} />
                       <div className="flex justify-end gap-1">
                         <button title="Edit section" onClick={()=>setEditing({...section,items:section.items.map(i=>({...i}))})} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-800"><Pencil size={15}/></button>
@@ -355,6 +355,6 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
 }
 
 function Summary({label,value}:{label:string;value:string}){return <div className="bg-white p-5"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</div><div className="mt-1 text-xl font-bold tabular-nums text-slate-900">{value}</div></div>}
-function Metric({label,value}:{label:string;value:string}){return <div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div><div className="mt-1 font-bold tabular-nums text-slate-900">{value}</div></div>}
+function Metric({label,value,danger=false}:{label:string;value:string;danger?:boolean}){return <div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div><div className={`mt-1 font-bold tabular-nums ${danger ? "text-red-600" : "text-slate-900"}`}>{value}</div></div>}
 function Field({label,value,onChange,type="text",className=""}:{label:string;value:string;onChange:(v:string)=>void;type?:string;className?:string}){return <label className={`block ${className}`}><span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</span><input type={type} value={value} onChange={e=>onChange(e.target.value)} className="mt-1.5 w-full border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"/></label>}
 function SelectField({label,value,options,onChange}:{label:string;value:string;options:string[];onChange:(v:string)=>void}){return <label className="block"><span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</span><select value={value} onChange={e=>onChange(e.target.value)} className="mt-1.5 w-full border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600">{options.map(o=><option key={o}>{o}</option>)}</select></label>}
