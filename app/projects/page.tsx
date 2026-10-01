@@ -4,7 +4,8 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Building2, CalendarDays, Pencil, Plus, Trash2, X } from "lucide-react";
 
-type Manager = { id: string; name: string; email: string; role: string };\ntype Project = { _id: string; name: string; client: string; location?: string; projectCompletion?: number; actualCost?: number; financialProgress?: number; contractAmount: number; budget: number; startDate: string; endDate: string; status: string; projectManager?: string; projectManagerId?: string; description?: string };
+type Manager = { id: string; name: string; email: string; role: string };
+type Project = { _id: string; name: string; client: string; location?: string; projectCompletion?: number; actualCost?: number; financialProgress?: number; contractAmount: number; budget: number; startDate: string; endDate: string; status: string; projectManager?: string; projectManagerId?: string; description?: string };
 const money = (n: number) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(n);
 const emptyForm = { name: "", client: "", location: "", contractAmount: "", budget: "", startDate: "", endDate: "", status: "Planning", projectManager: "", description: "" };
 
@@ -19,7 +20,8 @@ export default function ProjectsPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [form, setForm] = useState(emptyForm);\n  const [managers, setManagers] = useState<Manager[]>([]);
+  const [form, setForm] = useState(emptyForm);
+  const [managers, setManagers] = useState<Manager[]>([]);
 
   async function loadProjects() {
     setLoading(true);
