@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import Project from "@/models/Project";
 import WorkSection from "@/models/WorkSection";
 import CostEntry from "@/models/CostEntry";
+import User from "@/models/User";
 
 const finite = (value: unknown, fallback = 0) => {
   const number = Number(value);
@@ -11,38 +13,37 @@ const finite = (value: unknown, fallback = 0) => {
 
 function calculateProjectCompletion(sections: Array<{ progress?: number; items?: Array<{ quantity?: number; unitCost?: number }> }>) {
   if (!sections.length) return 0;
-
   let totalEstimated = 0;
   let weightedProgress = 0;
-
   for (const section of sections) {
     const estimate = (section.items || []).reduce(
       (sum, item) => sum + Math.max(0, finite(item.quantity)) * Math.max(0, finite(item.unitCost)),
       0,
     );
     const progress = Math.min(100, Math.max(0, finite(section.progress)));
-
     totalEstimated += estimate;
     weightedProgress += estimate * progress;
   }
+  if (totalEstimated > 0) return Math.min(100, Math.max(0, weightedProgress / totalEstimated));
+  return Math.min(100, Math.max(0, sections.reduce((sum, section) => sum + Math.min(100, Math.max(0, finite(section.progress))), 0) / sections.length));
+}
 
-  if (totalEstimated > 0) {
-    return Math.min(100, Math.max(0, weightedProgress / totalEstimated));
-  }
-
-  return Math.min(
-    100,
-    Math.max(
-      0,
-      sections.reduce((sum, section) => sum + Math.min(100, Math.max(0, finite(section.progress))), 0) / sections.length,
-    ),
-  );
+async function resolveManager(value: unknown) {
+  const id = String(value || "").trim();
+  if (!id) return { id: null, name: "" };
+  if (!mongoose.Types.ObjectId.isValid(id)) throw new Error("Invalid project manager");
+  const user = await User.findOne({
+    _id: id,
+    role: { $in: ["Project Manager", "Admin"] },
+    active: true,
+  }).select("_id name").lean();
+  if (!user) throw new Error("Selected project manager is not an active Project Manager or Admin");
+  return { id: user._id, name: user.name };
 }
 
 export async function GET() {
   try {
     await connectDB();
-
     const projects = await Project.find().sort({ createdAt: -1 }).lean();
     const projectIds = projects.map((project) => project._id);
     const [sections, costEntries] = await Promise.all([
@@ -63,18 +64,15 @@ export async function GET() {
       sectionsByProject.set(key, existing);
     }
 
-    return NextResponse.json(
-      projects.map((project) => ({
-        ...project,
-        projectCompletion: calculateProjectCompletion(
-          sectionsByProject.get(String(project._id)) || [],
-        ),
-        actualCost: actualByProject.get(String(project._id)) || 0,
-        financialProgress: project.contractAmount > 0
-          ? Math.min(100, Math.max(0, ((actualByProject.get(String(project._id)) || 0) / finite(project.contractAmount)) * 100))
-          : 0,
-      })),
-    );
+    return NextResponse.json(projects.map((project) => ({
+      ...project,
+      projectManagerId: project.projectManagerId ? String(project.projectManagerId) : "",
+      projectCompletion: calculateProjectCompletion(sectionsByProject.get(String(project._id)) || []),
+      actualCost: actualByProject.get(String(project._id)) || 0,
+      financialProgress: project.contractAmount > 0
+        ? Math.min(100, Math.max(0, ((actualByProject.get(String(project._id)) || 0) / finite(project.contractAmount)) * 100))
+        : 0,
+    })));
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to fetch projects" }, { status: 500 });
@@ -93,60 +91,30 @@ export async function POST(request: NextRequest) {
     const status = String(body.status || "Planning");
     const allowedStatuses = ["Planning", "Active", "On Hold", "Completed"];
 
-    if (!name || !client || !body.startDate || !body.endDate) {
-      return NextResponse.json({ error: "Project name, client, start date, and end date are required" }, { status: 400 });
-    }
-    if (!Number.isFinite(contractAmount) || contractAmount < 0 || !Number.isFinite(budget) || budget < 0) {
-      return NextResponse.json({ error: "Contract amount and budget must be valid non-negative numbers" }, { status: 400 });
-    }
-    if (!allowedStatuses.includes(status)) {
-      return NextResponse.json({ error: "Status must be Planning, Active, On Hold, or Completed" }, { status: 400 });
-    }
-    if (budget > contractAmount) {
-      return NextResponse.json({ error: "Budget cannot exceed the contract amount" }, { status: 400 });
-    }
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      return NextResponse.json({ error: "Start and end dates must be valid" }, { status: 400 });
-    }
-    if (endDate < startDate) {
-      return NextResponse.json({ error: "End date cannot be earlier than start date" }, { status: 400 });
-    }
+    if (!name || !client || !body.startDate || !body.endDate) return NextResponse.json({ error: "Project name, client, start date, and end date are required" }, { status: 400 });
+    if (!Number.isFinite(contractAmount) || contractAmount < 0 || !Number.isFinite(budget) || budget < 0) return NextResponse.json({ error: "Contract amount and budget must be valid non-negative numbers" }, { status: 400 });
+    if (!allowedStatuses.includes(status)) return NextResponse.json({ error: "Status must be Planning, Active, On Hold, or Completed" }, { status: 400 });
+    if (budget > contractAmount) return NextResponse.json({ error: "Budget cannot exceed the contract amount" }, { status: 400 });
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return NextResponse.json({ error: "Start and end dates must be valid" }, { status: 400 });
+    if (endDate < startDate) return NextResponse.json({ error: "End date cannot be earlier than start date" }, { status: 400 });
 
     await connectDB();
+    const manager = await resolveManager(body.projectManagerId);
     const project = await Project.create({
-      name,
-      client,
-      location: String(body.location || "").trim(),
-      contractAmount,
-      budget,
-      startDate,
-      endDate,
-      status,
-      projectManager: String(body.projectManager || "").trim(),
+      name, client, location: String(body.location || "").trim(), contractAmount, budget,
+      startDate, endDate, status, projectManager: manager.name,
+      projectManagerId: manager.id,
       description: String(body.description || "").trim(),
     });
-    const defaultSections = [
-      "Foundation",
-      "Structural Frame",
-      "Walls",
-      "Roof",
-      "Doors & Windows",
-      "Electrical",
-      "Plumbing",
-      "Finishes",
-    ];
+
+    const defaultSections = ["Foundation", "Structural Frame", "Walls", "Roof", "Doors & Windows", "Electrical", "Plumbing", "Finishes"];
     await WorkSection.insertMany(defaultSections.map((name, index) => ({
-      projectId: project._id,
-      name,
-      order: index,
-      status: "Not Started",
-      progress: 0,
-      items: [],
+      projectId: project._id, name, order: index, status: "Not Started", progress: 0, items: [],
     })));
 
     return NextResponse.json(project, { status: 201 });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Failed to create project" }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to create project" }, { status: 400 });
   }
 }
