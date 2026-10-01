@@ -32,13 +32,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid project id" }, { status: 400 });
     }
 
+    await connectDB();
+    const Project = (await import("@/models/Project")).default;
+    const project = await Project.findById(body.projectId).select("budget").lean();
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
     const quantity = Number(body.quantity);
     const unitCost = Number(body.unitCost);
+
     if (!Number.isFinite(quantity) || quantity < 0 || !Number.isFinite(unitCost) || unitCost < 0) {
       return NextResponse.json({ error: "Quantity and unit cost must be valid non-negative numbers" }, { status: 400 });
     }
 
-    await connectDB();
+    const existingBOQ = await BOQItem.aggregate([
+      { $match: { projectId: new mongoose.Types.ObjectId(body.projectId) } },
+      { $group: { _id: null, total: { $sum: "$totalCost" } } },
+    ]);
+    const currentTotal = Number(existingBOQ[0]?.total || 0);
+    const newTotal = currentTotal + quantity * unitCost;
+    if (newTotal > Number(project.budget)) {
+      return NextResponse.json({ error: `BOQ total would exceed the project budget by ${newTotal - Number(project.budget)}.` }, { status: 409 });
+    }
+
     const item = await BOQItem.create({
       projectId: body.projectId,
       itemNo,
