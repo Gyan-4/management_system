@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import TopBar from "./components/TopBar";
+import AppShell from "./components/AppShell";
 import { ProjectProvider } from "./components/ProjectContext";
 
 export const metadata: Metadata = {
@@ -8,13 +8,14 @@ export const metadata: Metadata = {
   description: "Construction cost and project management system",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body>
         <ProjectProvider>
-          <TopBar />
-          <main className="min-h-screen bg-slate-50 pt-[112px] md:pt-[116px]">{children}</main>
+          <AppShell>{children}</AppShell>
         </ProjectProvider>
       </body>
     </html>
