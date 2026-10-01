@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Building2, Loader2, LockKeyhole, UserPlus } from "lucide-react";
+import { Loader2, LockKeyhole, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -48,9 +48,7 @@ export default function LoginPage() {
       router.replace(nextPath);
       router.refresh();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Authentication failed.",
-      );
+      setError(err instanceof Error ? err.message : "Authentication failed.");
     } finally {
       setLoading(false);
     }
@@ -60,22 +58,28 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-5 py-10">
       <div className="w-full max-w-md border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-7 py-7">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2.5 text-white">
-              <Building2 size={20} />
-            </div>
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
-                Project Control
-              </div>
-              <h1 className="text-xl font-bold">ConstructFlow</h1>
-            </div>
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded bg-slate-900 text-[11px] font-black text-white">
+              CF
+            </span>
+            <span className="text-[15px] font-bold tracking-tight text-slate-900">
+              ConstructFlow
+            </span>
           </div>
-          <p className="mt-5 text-sm text-slate-500">
-            {setup
-              ? "Create the first administrator account for this system."
-              : "Sign in to access your construction management workspace."}
-          </p>
+
+          <div className="mt-6 border-l-2 border-blue-600 pl-4">
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
+              Project Control
+            </div>
+            <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900">
+              {setup ? "Create administrator account" : "Sign in"}
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              {setup
+                ? "Set up the first administrator account for this construction management system."
+                : "Sign in to access your construction management workspace."}
+            </p>
+          </div>
         </div>
 
         <form onSubmit={submit} className="space-y-5 p-7">
@@ -133,12 +137,16 @@ export default function LoginPage() {
           </button>
 
           {setup && (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs leading-5 text-slate-500">
               This one-time setup creates an Admin account. Afterward, the
               normal login screen is used.
             </p>
           )}
         </form>
+
+        <div className="border-t border-slate-200 bg-slate-50 px-7 py-4 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+          Construction Cost &amp; Project Management System
+        </div>
       </div>
     </main>
   );
@@ -166,7 +174,7 @@ function Field({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="mt-1.5 w-full border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+        className="mt-1.5 w-full border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
       />
     </label>
   );
