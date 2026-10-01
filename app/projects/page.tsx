@@ -48,6 +48,7 @@ export default function ProjectsPage() {
     if (!form.startDate || !form.endDate) { setError("Start and end dates are required."); setSaving(false); return; }
     if (form.endDate < form.startDate) { setError("End date cannot be earlier than start date."); setSaving(false); return; }
     if (budget > contract) { setError("Estimated budget should not exceed the contract amount."); setSaving(false); return; }
+    if (contract === 0 && budget === 0) { setError("Contract amount and budget cannot both be zero."); setSaving(false); return; }
     try {
       const r = await fetch(editing ? `/api/projects/${editing._id}` : "/api/projects", { method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, contractAmount: contract, budget }) });
       if (!r.ok) throw new Error(await responseError(r, editing ? "Could not update the project." : "Could not create the project."));
