@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import BOQItem from "@/models/BOQItem";
+import CostEntry from "@/models/CostEntry";
+import WorkSection from "@/models/WorkSection";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -55,6 +57,18 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Invalid BOQ item id" }, { status: 400 });
     }
     await connectDB();
+    const [costReference, sectionReference] = await Promise.all([
+      CostEntry.exists({ boqItemId: id }),
+      WorkSection.exists({ "items.boqItemId": id }),
+    ]);
+
+    if (costReference || sectionReference) {
+      return NextResponse.json(
+        { error: "This BOQ item is linked to recorded costs or a work section. Remove those links before deleting it." },
+        { status: 409 }
+      );
+    }
+
     const result = await BOQItem.findByIdAndDelete(id);
     if (!result) return NextResponse.json({ error: "Item not found" }, { status: 404 });
     return NextResponse.json({ success: true });
