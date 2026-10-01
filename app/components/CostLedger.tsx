@@ -28,6 +28,7 @@ export default function CostLedger({ category, title, description }: { category:
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
   const [form, setForm] = useState<FormState>(() => defaultForm(category));
 
   useEffect(() => {
@@ -58,6 +59,11 @@ export default function CostLedger({ category, title, description }: { category:
   }, [projectId]);
 
   const total = useMemo(() => entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0), [entries]);
+  const filteredEntries = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return entries;
+    return entries.filter((entry) => [entry.description, entry.supplierOrEmployee, entry.referenceNo, entry.unit, entry.notes || ""].some((value) => String(value).toLowerCase().includes(q)));
+  }, [entries, search]);
   const boqCategory = category === "Material" ? "Materials" : category === "Expense" ? "Other" : category;
   const plannedItems = useMemo(() => boqItems.filter((item) => item.category === boqCategory), [boqItems, boqCategory]);
   const plannedTotal = useMemo(() => plannedItems.reduce((sum, item) => sum + Number(item.totalCost ?? Number(item.quantity || 0) * Number(item.unitCost || 0)), 0), [plannedItems]);
@@ -164,9 +170,13 @@ export default function CostLedger({ category, title, description }: { category:
           <div className="bg-white p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Planned BOQ Cost</div><div className="mt-1 text-lg font-bold tabular-nums">{money(plannedTotal)}</div></div><div className="bg-white p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actual / Planned</div><div className={`mt-1 text-lg font-bold tabular-nums ${plannedTotal && total > plannedTotal ? "text-red-600" : "text-slate-900"}`}>{plannedTotal ? `${(total / plannedTotal * 100).toFixed(1)}%` : "—"}</div></div>
         </div>
 
+        <div className="mb-4 flex items-center gap-3 border border-slate-200 bg-white p-4">
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search description, supplier, reference..." className="min-w-0 flex-1 border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500" />
+          <span className="whitespace-nowrap text-xs font-semibold text-slate-500">{filteredEntries.length} of {entries.length} records</span>
+        </div>
         <div className="overflow-x-auto border border-slate-200 bg-white">
-          {loading ? <div className="p-12 text-center text-sm text-slate-500">Loading register...</div> : <table className="data-table min-w-[1100px] text-sm"><thead><tr><th>Date</th><th>Description</th><th>BOQ Baseline</th><th>Work Section</th><th>Supplier / Employee</th><th>Reference</th><th className="text-right">Qty</th><th>Unit</th><th className="text-right">Unit Cost</th><th className="text-right">Actual Amount</th><th className="text-right">Actions</th></tr></thead><tbody>{entries.map((entry) => <tr key={entry._id}><td className="whitespace-nowrap">{new Date(entry.date).toLocaleDateString("en-PH")}</td><td className="font-semibold text-slate-900">{entry.description}</td><td>{entry.boqItemId ? (boqItems.find((item) => item._id === entry.boqItemId)?.itemNo || "Linked") : "—"}</td><td>{entry.workSectionId ? (workSections.find((section) => section._id === entry.workSectionId)?.name || "Linked") : "—"}</td><td>{entry.supplierOrEmployee || "—"}</td><td>{entry.referenceNo || "—"}</td><td className="text-right tabular-nums">{entry.quantity}</td><td>{entry.unit}</td><td className="text-right tabular-nums">{money(entry.unitCost)}</td><td className="text-right font-bold tabular-nums">{money(entry.amount)}</td><td><div className="flex justify-end gap-1"><button aria-label={`Edit ${entry.description}`} onClick={() => openEdit(entry)} className="p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"><Pencil size={15} /></button><button aria-label={`Delete ${entry.description}`} onClick={() => removeEntry(entry._id)} className="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button></div></td></tr>)}</tbody>{entries.length > 0 && <tfoot><tr><td colSpan={9} className="text-right font-bold">REGISTER TOTAL</td><td className="text-right text-base font-bold">{money(total)}</td><td /></tr></tfoot>}</table>}
-          {!loading && entries.length === 0 && <div className="p-12 text-center text-sm text-slate-500">No {title.toLowerCase()} records for this project.</div>}
+          {loading ? <div className="p-12 text-center text-sm text-slate-500">Loading register...</div> : <table className="data-table min-w-[1100px] text-sm"><thead><tr><th>Date</th><th>Description</th><th>BOQ Baseline</th><th>Work Section</th><th>Supplier / Employee</th><th>Reference</th><th className="text-right">Qty</th><th>Unit</th><th className="text-right">Unit Cost</th><th className="text-right">Actual Amount</th><th className="text-right">Actions</th></tr></thead><tbody>{filteredEntries.map((entry) => <tr key={entry._id}><td className="whitespace-nowrap">{new Date(entry.date).toLocaleDateString("en-PH")}</td><td className="font-semibold text-slate-900">{entry.description}</td><td>{entry.boqItemId ? (boqItems.find((item) => item._id === entry.boqItemId)?.itemNo || "Linked") : "—"}</td><td>{entry.workSectionId ? (workSections.find((section) => section._id === entry.workSectionId)?.name || "Linked") : "—"}</td><td>{entry.supplierOrEmployee || "—"}</td><td>{entry.referenceNo || "—"}</td><td className="text-right tabular-nums">{entry.quantity}</td><td>{entry.unit}</td><td className="text-right tabular-nums">{money(entry.unitCost)}</td><td className="text-right font-bold tabular-nums">{money(entry.amount)}</td><td><div className="flex justify-end gap-1"><button aria-label={`Edit ${entry.description}`} onClick={() => openEdit(entry)} className="p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"><Pencil size={15} /></button><button aria-label={`Delete ${entry.description}`} onClick={() => removeEntry(entry._id)} className="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button></div></td></tr>)}</tbody>{filteredEntries.length > 0 && <tfoot><tr><td colSpan={9} className="text-right font-bold">REGISTER TOTAL</td><td className="text-right text-base font-bold">{money(total)}</td><td /></tr></tfoot>}</table>}
+          {!loading && entries.length === 0 && <div className="p-12 text-center text-sm text-slate-500">No {title.toLowerCase()} records for this project.</div>}{!loading && entries.length > 0 && filteredEntries.length === 0 && <div className="p-12 text-center text-sm text-slate-500">No records match the current search.</div>}
         </div>
 
         {open && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 p-4"><form onSubmit={saveEntry} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto border border-slate-200 bg-white shadow-2xl">
