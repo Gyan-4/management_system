@@ -5,6 +5,7 @@ import BOQItem from "@/models/BOQItem";
 import CostEntry from "@/models/CostEntry";
 import Project from "@/models/Project";
 import WorkSection from "@/models/WorkSection";
+import ProjectProgress from "@/models/ProjectProgress";
 
 type WorkItem = { category: "Material" | "Labor" | "Equipment" | "Other"; quantity?: number; unitCost?: number; actualCost?: number };
 type WorkSectionRow = { _id: unknown; name: string; status: string; progress: number; items: WorkItem[] };
@@ -30,11 +31,12 @@ export async function GET(request: NextRequest) {
     if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) return NextResponse.json({ error: "Valid projectId is required" }, { status: 400 });
     await connectDB();
 
-    const [project, boq, actual, sections] = await Promise.all([
+    const [project, boq, actual, sections, latestProgress] = await Promise.all([
       Project.findById(projectId).lean(),
       BOQItem.find({ projectId }).lean(),
       CostEntry.find({ projectId }).lean(),
       WorkSection.find({ projectId }).sort({ order: 1, createdAt: 1 }).lean(),
+      ProjectProgress.findOne({ projectId }).sort({ progressDate: -1, createdAt: -1 }).lean(),
     ]);
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
@@ -98,7 +100,7 @@ export async function GET(request: NextRequest) {
       project, estimate, spent, estimatedTotal, actualTotal, variance: estimatedTotal - actualTotal, budgetRemaining: budget - actualTotal, projectedProfit: contractAmount - actualTotal,
       physicalProgress, financialProgress, budgetUtilization, boqUtilization, progressGap,
       progressStatus: progressGap > 10 ? "Spending ahead of physical progress" : progressGap < -10 ? "Physical progress ahead of spending" : "Progress and spending are aligned",
-      latestProgressDate: null, boqCount: boq.length, entryCount: actual.length, workSectionCount: sectionRows.length, sectionBreakdown, boqLineAnalysis, estimateSource: "BOQ",
+      latestProgressDate: latestProgress?.progressDate ? new Date(latestProgress.progressDate).toISOString() : null, boqCount: boq.length, entryCount: actual.length, workSectionCount: sectionRows.length, sectionBreakdown, boqLineAnalysis, estimateSource: "BOQ",
     });
   } catch (error) {
     console.error(error);
