@@ -24,6 +24,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     await connectDB();
+
+    const existing = await BOQItem.findById(id).lean();
+    if (!existing) return NextResponse.json({ error: "BOQ item not found" }, { status: 404 });
+
+    const linkedActualCost = await CostEntry.aggregate([
+      { $match: { boqItemId: existing._id } },
+      { $group: { _id: null, amount: { $sum: "$amount" } } },
+    ]);
+    const actualCost = Number(linkedActualCost[0]?.amount || 0);
+    const newPlannedCost = quantity * unitCost;
+
+    if (actualCost > newPlannedCost) {
+      return NextResponse.json(
+        { error: `Planned BOQ cost cannot be reduced below recorded actual cost of ${actualCost}.` },
+        { status: 409 }
+      );
+    }
+
     const item = await BOQItem.findByIdAndUpdate(
       id,
       {
