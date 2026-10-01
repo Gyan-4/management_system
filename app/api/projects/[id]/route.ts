@@ -26,6 +26,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!Number.isFinite(contractAmount) || contractAmount < 0 || !Number.isFinite(budget) || budget < 0) {
       return NextResponse.json({ error: "Contract amount and budget must be valid non-negative numbers" }, { status: 400 });
     }
+    if (budget > contractAmount) {
+      return NextResponse.json({ error: "Budget cannot exceed the contract amount" }, { status: 400 });
+    }
+    if (contractAmount === 0 && budget === 0) {
+      return NextResponse.json({ error: "Contract amount and budget cannot both be zero" }, { status: 400 });
+    }
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
       return NextResponse.json({ error: "Start and end dates must be valid" }, { status: 400 });
     }
