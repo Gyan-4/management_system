@@ -19,12 +19,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const budget = Number(body.budget);
     const startDate = new Date(body.startDate);
     const endDate = new Date(body.endDate);
+    const status = String(body.status || "Planning");
+    const allowedStatuses = ["Planning", "Active", "On Hold", "Completed"];
 
     if (!body.name?.trim() || !body.client?.trim() || !body.startDate || !body.endDate) {
       return NextResponse.json({ error: "Project name, client, start date, and end date are required" }, { status: 400 });
     }
     if (!Number.isFinite(contractAmount) || contractAmount < 0 || !Number.isFinite(budget) || budget < 0) {
       return NextResponse.json({ error: "Contract amount and budget must be valid non-negative numbers" }, { status: 400 });
+    }
+    if (!allowedStatuses.includes(status)) {
+      return NextResponse.json({ error: "Status must be Planning, Active, On Hold, or Completed" }, { status: 400 });
     }
     if (budget > contractAmount) {
       return NextResponse.json({ error: "Budget cannot exceed the contract amount" }, { status: 400 });
@@ -50,7 +55,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         budget,
         startDate,
         endDate,
-        status: body.status,
+        status,
         projectManager: body.projectManager?.trim() || "",
         description: body.description?.trim() || "",
       },
