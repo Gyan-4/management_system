@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/mongodb";
 import CostEntry from "@/models/CostEntry";
 import BOQItem from "@/models/BOQItem";
 import WorkSection from "@/models/WorkSection";
+import Project from "@/models/Project";
 
 const categories = ["Material", "Labor", "Equipment", "Expense"] as const;
 
@@ -68,6 +69,17 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(amount)) return NextResponse.json({ error: "Calculated amount is invalid" }, { status: 400 });
 
     await connectDB();
+
+    const project = await Project.findById(projectId).select("_id").lean();
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const parsedDate = new Date(date);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return NextResponse.json({ error: "Cost date must be a valid date" }, { status: 400 });
+    }
+
     if (boqItemId) {
       const boqItem = await BOQItem.findOne({ _id: boqItemId, projectId }).lean();
       if (!boqItem) return NextResponse.json({ error: "BOQ item does not belong to this project" }, { status: 400 });
