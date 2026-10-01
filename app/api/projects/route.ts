@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Project from "@/models/Project";
 import WorkSection from "@/models/WorkSection";
+import CostEntry from "@/models/CostEntry";
 
 const finite = (value: unknown, fallback = 0) => {
   const number = Number(value);
@@ -43,11 +44,18 @@ export async function GET() {
     await connectDB();
 
     const projects = await Project.find().sort({ createdAt: -1 }).lean();
-    const sections = await WorkSection.find({
-      projectId: { $in: projects.map((project) => project._id) },
-    }).lean();
+    const projectIds = projects.map((project) => project._id);
+    const [sections, costEntries] = await Promise.all([
+      WorkSection.find({ projectId: { $in: projectIds } }).lean(),
+      CostEntry.find({ projectId: { $in: projectIds } }).select("projectId amount").lean(),
+    ]);
 
     const sectionsByProject = new Map<string, typeof sections>();
+    const actualByProject = new Map<string, number>();
+    for (const entry of costEntries) {
+      const key = String(entry.projectId);
+      actualByProject.set(key, (actualByProject.get(key) || 0) + Math.max(0, finite(entry.amount)));
+    }
     for (const section of sections) {
       const key = String(section.projectId);
       const existing = sectionsByProject.get(key) || [];
@@ -61,6 +69,10 @@ export async function GET() {
         projectCompletion: calculateProjectCompletion(
           sectionsByProject.get(String(project._id)) || [],
         ),
+        actualCost: actualByProject.get(String(project._id)) || 0,
+        financialProgress: project.contractAmount > 0
+          ? Math.min(100, Math.max(0, ((actualByProject.get(String(project._id)) || 0) / finite(project.contractAmount)) * 100))
+          : 0,
       })),
     );
   } catch (error) {
