@@ -29,9 +29,9 @@ export async function GET(request: NextRequest) {
 
     if (projectId) {
       if (!mongoose.Types.ObjectId.isValid(projectId)) return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
-      const project = await Project.findById(projectId).select("_id projectManagerId").lean();
+      const project = await Project.findById(projectId).select("_id").lean();
       if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-      if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+      if (!canAccessProject(session.role, null, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
       filter.projectId = projectId;
     } else if (session.role === "Project Manager") {
       const assigned = await Project.find({ projectManagerId: session.id }).select("_id").lean();
@@ -81,11 +81,11 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const project = await Project.findById(projectId).select("_id projectManagerId").lean();
+    const project = await Project.findById(projectId).select("_id").lean();
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
-    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+    if (!canAccessProject(session.role, null, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
 
     const parsedDate = new Date(date);
     if (Number.isNaN(parsedDate.getTime())) {
