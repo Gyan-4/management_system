@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { Activity, AlertTriangle, Plus, Trash2, X } from "lucide-react";
 
 type Project={_id:string;name:string;contractAmount:number};
@@ -15,7 +16,7 @@ export default function ProgressPage(){
  useEffect(()=>{load()},[projectId]);
  function resetForm(){setForm({progressDate:new Date().toISOString().slice(0,10),milestone:"",notes:""});}
  function openAdd(){resetForm();setOpen(true)}
- async function save(e:React.FormEvent){e.preventDefault();setSaving(true);setError("");const percentage=Number(analysis?.physicalProgress||0);try{const r=await fetch("/api/progress",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...form,projectId,percentage})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Could not save site update.");setOpen(false);resetForm();await load()}catch(e){setError(e instanceof Error?e.message:"Could not save site update.")}finally{setSaving(false)}}
+ async function save(e:FormEvent){e.preventDefault();setSaving(true);setError("");const percentage=Number(analysis?.physicalProgress||0);try{const r=await fetch("/api/progress",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...form,projectId,percentage})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Could not save site update.");setOpen(false);resetForm();await load()}catch(e){setError(e instanceof Error?e.message:"Could not save site update.")}finally{setSaving(false)}}
  async function del(id:string){if(!window.confirm("Delete this progress record?"))return;try{const r=await fetch(`/api/progress/${id}`,{method:"DELETE"});if(!r.ok)throw new Error("Could not delete progress.");await load()}catch(e){setError(e instanceof Error?e.message:"Could not delete progress.")}}
  return <main className="min-h-screen p-5 md:p-8"><div className="mx-auto max-w-[1500px]">
   <div className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between"><div><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">Monitoring / Site Control</div><h1 className="mt-1 text-2xl font-bold tracking-tight">Project Progress</h1><p className="mt-1 text-sm text-slate-500">Progress is calculated automatically from BOQ quantities and recorded actual quantities.</p></div><button disabled={!projectId} onClick={openAdd} className="flex items-center justify-center gap-2 bg-blue-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"><Plus size={16}/> Add Site Update</button></div>
