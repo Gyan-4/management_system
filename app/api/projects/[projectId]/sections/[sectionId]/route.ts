@@ -57,9 +57,9 @@ export async function DELETE(_request: NextRequest, { params }: Context) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { projectId, sectionId } = await params;
     await connectDB();
-    const project = await Project.findById(projectId).select("_id projectManagerId").lean();
+    const project = await Project.findById(projectId).select("_id").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+    if (!canAccessProject(session.role, null, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
     const deleted = await WorkSection.findOneAndDelete({ _id: sectionId, projectId });
     if (!deleted) return NextResponse.json({ error: "Work section not found" }, { status: 404 });
     return NextResponse.json({ ok: true });
