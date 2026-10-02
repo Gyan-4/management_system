@@ -2,15 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import BOQItem from "@/models/BOQItem";
+import Project from "@/models/Project";
+import { getSession, canAccessProject } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     await connectDB();
     const projectId = request.nextUrl.searchParams.get("projectId");
     if (projectId && !mongoose.Types.ObjectId.isValid(projectId)) {
       return NextResponse.json({ error: "Invalid project id" }, { status: 400 });
     }
-    const items = await BOQItem.find(projectId ? { projectId } : {}).sort({ itemNo: 1 }).lean();
+    let filter: Record<string, unknown> = projectId ? { projectId } : {};
+    if (projectId) {
+      const project = await Project.findById(projectId).select("_id projectManagerId").lean();
+      if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+    } else if (session.role === "Project Manager") {
+      const assigned = await Project.find({ projectManagerId: session.id }).select("_id").lean();
+      filter = { projectId: { $in: assigned.map((p) => p._id) } };
+    }
+    const items = await BOQItem.find(filter).sort({ itemNo: 1 }).lean();
     return NextResponse.json(items);
   } catch (error) {
     console.error(error);
@@ -20,6 +33,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const body = await request.json();
     const itemNo = String(body.itemNo || "").trim();
     const description = String(body.description || "").trim();
@@ -33,10 +48,12 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
-    const Project = (await import("@/models/Project")).default;
-    const project = await Project.findById(body.projectId).select("budget").lean();
+    const project = await Project.findById(body.projectId).select("budget projectManagerId").lean();
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+    if (!canAccessProject(session.role, project.projectManagerId, session.id)) {
+      return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
     }
 
     const quantity = Number(body.quantity);
