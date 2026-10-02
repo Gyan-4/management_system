@@ -31,9 +31,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const existing = await BOQItem.findById(id).lean();
     if (!existing) return NextResponse.json({ error: "BOQ item not found" }, { status: 404 });
-    const projectAccess = await Project.findById(existing.projectId).select("_id projectManagerId").lean();
+
+    const projectAccess = await Project.findById(existing.projectId).select("_id").lean();
     if (!projectAccess) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    if (!canAccessProject(session.role, projectAccess.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+    if (!canAccessProject(session.role)) {
+      return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+    }
 
     const linkedActualCost = await CostEntry.aggregate([
       { $match: { boqItemId: existing._id } },
@@ -42,7 +45,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const actualCost = Number(linkedActualCost[0]?.amount || 0);
     const newPlannedCost = quantity * unitCost;
 
-    const project = await Project.findById(existing.projectId).select("budget projectManagerId").lean();
+    const project = await Project.findById(existing.projectId).select("budget").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
     const currentProjectBOQ = await BOQItem.aggregate([
@@ -73,7 +76,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         unit: body.unit.trim(),
         quantity,
         unitCost,
-        totalCost: quantity * unitCost,
+        totalCost: newPlannedCost,
         notes: body.notes || "",
       },
       { new: true, runValidators: true }
@@ -98,12 +101,17 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: "Invalid BOQ item id" }, { status: 400 });
     }
+
     await connectDB();
     const existing = await BOQItem.findById(id).lean();
     if (!existing) return NextResponse.json({ error: "Item not found" }, { status: 404 });
-    const project = await Project.findById(existing.projectId).select("_id projectManagerId").lean();
+
+    const project = await Project.findById(existing.projectId).select("_id").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+    if (!canAccessProject(session.role)) {
+      return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+    }
+
     const [costReference, sectionReference] = await Promise.all([
       CostEntry.exists({ boqItemId: id }),
       WorkSection.exists({ "items.boqItemId": id }),
