@@ -412,7 +412,6 @@ export default function SettingsPage() {
                     }
                     className="mt-1.5 w-full border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                   >
-                    <option>Project Manager</option>
                     <option>Engineer</option>
                     <option>Admin</option>
                   </select>
