@@ -14,9 +14,9 @@ export async function PATCH(request: NextRequest, { params }: Context) {
     const { projectId, sectionId } = await params;
     const body = await request.json();
     await connectDB();
-    const project = await Project.findById(projectId).select("_id projectManagerId").lean();
+    const project = await Project.findById(projectId).select("_id").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+    if (!canAccessProject(session.role, null, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
 
     const update: Record<string, unknown> = {};
     for (const key of ["name", "description", "order", "status", "progress", "items"]) {
