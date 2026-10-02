@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Building2, CalendarDays, Pencil, Plus, Trash2, X } from "lucide-react";
 
 type CurrentUser = { id: string; name: string; role: string };
-type Project = { _id: string; name: string; client: string; location?: string; projectCompletion?: number; actualCost?: number; financialProgress?: number; contractAmount: number; budget: number; startDate: string; endDate: string; status: string; projectManager?: string; projectManagerId?: string; description?: string };
+type Project = { _id: string; name: string; client: string; location?: string; projectCompletion?: number; actualCost?: number; financialProgress?: number; contractAmount: number; budget: number; startDate: string; endDate: string; status: string; description?: string };
 const money = (n: number) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(n);
 const emptyForm = { name: "", client: "", location: "", contractAmount: "", budget: "", startDate: "", endDate: "", status: "Planning", description: "" };
 
