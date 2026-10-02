@@ -44,7 +44,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const existing = await Project.findById(id).lean();
     if (!existing) return NextResponse.json({ error: "Project not found" }, { status: 404 });
     if (!canManageAllProjects(session.role) && String(existing.projectManagerId || "") !== session.id) return NextResponse.json({ error: "You can only edit projects assigned to you" }, { status: 403 });
-    if (!["Admin", "Project Manager"].includes(session.role)) return NextResponse.json({ error: "You do not have permission to edit project records" }, { status: 403 });
+    if (!["Admin", "Engineer", "Project Manager"].includes(session.role)) return NextResponse.json({ error: "You do not have permission to edit project records" }, { status: 403 });
     const requestedManagerId = String(body.projectManagerId || "").trim();
     if (session.role === "Project Manager" && requestedManagerId && requestedManagerId !== session.id) return NextResponse.json({ error: "Project Managers cannot reassign a project to another user" }, { status: 403 });
     const manager = session.role === "Project Manager" ? await resolveManager(session.id) : await resolveManager(requestedManagerId);
