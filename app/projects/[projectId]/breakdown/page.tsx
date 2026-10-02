@@ -99,7 +99,9 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
         fetch(`/api/projects/${id}/sections`, { cache: "no-store" }),
         fetch(`/api/boq?projectId=${id}`, { cache: "no-store" }),
       ]);
-      if (!projectResponse.ok || !sectionsResponse.ok || !boqResponse.ok) throw new Error("Could not load project breakdown.");
+      if (!projectResponse.ok) throw new Error(await errorText(projectResponse, "Could not load projects."));
+      if (!sectionsResponse.ok) throw new Error(await errorText(sectionsResponse, "Could not load project breakdown."));
+      if (!boqResponse.ok) throw new Error(await errorText(boqResponse, "Could not load BOQ items."));
       const projects: Project[] = await projectResponse.json();
       const found = projects.find((p) => p._id === id);
       if (!found) throw new Error("Project not found.");
