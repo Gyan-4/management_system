@@ -14,7 +14,7 @@ export async function GET() {
 
   await connectDB();
   const users = await User.find({
-    role: { $in: ["Project Manager", "Admin"] },
+    role: "Project Manager",
     active: true,
   })
     .select("_id name email role")
