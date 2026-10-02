@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   if (password.length < 8) {
     return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
   }
-  if (!["Admin", "Project Manager", "Engineer"].includes(role)) {
+  if (!["Admin", "Engineer"].includes(role)) {
     return NextResponse.json({ error: "Invalid user role." }, { status: 400 });
   }
 
@@ -113,7 +113,7 @@ export async function PATCH(request: Request) {
   if (!/^\S+@\S+\.\S+$/.test(email)) {
     return NextResponse.json({ error: "A valid email address is required." }, { status: 400 });
   }
-  if (!["Admin", "Project Manager", "Engineer"].includes(role)) {
+  if (!["Admin", "Engineer"].includes(role)) {
     return NextResponse.json({ error: "Invalid user role." }, { status: 400 });
   }
   if (typeof active !== "boolean") {
