@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    if (!["Admin", "Project Manager"].includes(session.role)) return NextResponse.json({ error: "Only Admin or Project Manager users can create projects" }, { status: 403 });
+    if (!["Admin", "Engineer", "Project Manager"].includes(session.role)) return NextResponse.json({ error: "Only Admin, Engineer, or Project Manager users can create projects" }, { status: 403 });
     const body = await request.json();
     const name = String(body.name || "").trim();
     const client = String(body.client || "").trim();
