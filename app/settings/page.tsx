@@ -34,7 +34,7 @@ type UserRecord = {
   id: string;
   name: string;
   email: string;
-  role: "Admin" | "Project Manager" | "Engineer";
+  role: "Admin" | "Engineer";
   active: boolean;
   createdAt?: string;
 };
@@ -50,7 +50,7 @@ const emptyUser = {
   name: "",
   email: "",
   password: "",
-  role: "Project Manager" as UserRecord["role"],
+  role: "Engineer" as UserRecord["role"],
   active: true,
 };
 
@@ -339,7 +339,7 @@ export default function SettingsPage() {
             <div>
               <h2 className="text-sm font-bold">User Accounts</h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                Create separate accounts for administrators, project managers, and engineers.
+                Create separate accounts for administrators and engineers.
               </p>
             </div>
             <button
