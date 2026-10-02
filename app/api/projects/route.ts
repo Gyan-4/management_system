@@ -32,7 +32,7 @@ export async function GET() {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     await connectDB();
-    const projectFilter = canManageAllProjects(session.role) ? {} : { projectManagerId: session.id };
+    const projectFilter = canManageAllProjects(session.role) ? {} : { _id: { $exists: false } };
     const projects = await Project.find(projectFilter).sort({ createdAt: -1 }).lean();
     const projectIds = projects.map((project) => project._id);
     const [sections, costEntries] = await Promise.all([
@@ -55,7 +55,6 @@ export async function GET() {
 
     return NextResponse.json(projects.map((project) => ({
       ...project,
-      projectManagerId: project.projectManagerId ? String(project.projectManagerId) : "",
       projectCompletion: calculateProjectCompletion(sectionsByProject.get(String(project._id)) || []),
       actualCost: actualByProject.get(String(project._id)) || 0,
       financialProgress: project.contractAmount > 0
@@ -94,8 +93,6 @@ export async function POST(request: NextRequest) {
     const project = await Project.create({
       name, client, location: String(body.location || "").trim(), contractAmount, budget,
       startDate, endDate, status,
-      projectManager: "",
-      projectManagerId: null,
       description: String(body.description || "").trim(),
     });
 
