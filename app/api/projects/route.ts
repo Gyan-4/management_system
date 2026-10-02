@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import Project from "@/models/Project";
 import WorkSection from "@/models/WorkSection";
 import CostEntry from "@/models/CostEntry";
-import User from "@/models/User";
 import { getSession, canManageAllProjects } from "@/lib/session";
 
 const finite = (value: unknown, fallback = 0) => {
@@ -27,19 +25,6 @@ function calculateProjectCompletion(sections: Array<{ progress?: number; items?:
   }
   if (totalEstimated > 0) return Math.min(100, Math.max(0, weightedProgress / totalEstimated));
   return Math.min(100, Math.max(0, sections.reduce((sum, section) => sum + Math.min(100, Math.max(0, finite(section.progress))), 0) / sections.length));
-}
-
-async function resolveManager(value: unknown) {
-  const id = String(value || "").trim();
-  if (!id) return { id: null, name: "" };
-  if (!mongoose.Types.ObjectId.isValid(id)) throw new Error("Invalid project manager");
-  const user = await User.findOne({
-    _id: id,
-    role: "Project Manager",
-    active: true,
-  }).select("_id name").lean();
-  if (!user) throw new Error("Selected project manager is not an active Project Manager");
-  return { id: user._id, name: user.name };
 }
 
 export async function GET() {
@@ -87,7 +72,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    if (!["Admin", "Engineer", "Project Manager"].includes(session.role)) return NextResponse.json({ error: "Only Admin, Engineer, or Project Manager users can create projects" }, { status: 403 });
+    if (!["Admin", "Engineer"].includes(session.role)) return NextResponse.json({ error: "Only Admin or Engineer users can create projects" }, { status: 403 });
     const body = await request.json();
     const name = String(body.name || "").trim();
     const client = String(body.client || "").trim();
@@ -106,14 +91,11 @@ export async function POST(request: NextRequest) {
     if (endDate < startDate) return NextResponse.json({ error: "End date cannot be earlier than start date" }, { status: 400 });
 
     await connectDB();
-    const requestedManagerId = String(body.projectManagerId || "").trim();
-    const manager = session.role === "Project Manager"
-      ? await resolveManager(session.id)
-      : await resolveManager(requestedManagerId);
     const project = await Project.create({
       name, client, location: String(body.location || "").trim(), contractAmount, budget,
-      startDate, endDate, status, projectManager: manager.name,
-      projectManagerId: manager.id,
+      startDate, endDate, status,
+      projectManager: "",
+      projectManagerId: null,
       description: String(body.description || "").trim(),
     });
 
