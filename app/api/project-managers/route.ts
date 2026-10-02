@@ -13,10 +13,11 @@ export async function GET() {
   }
 
   await connectDB();
-  const users = await User.find({
-    role: "Project Manager",
-    active: true,
-  })
+  const filter = session.role === "Project Manager"
+    ? { role: "Project Manager", active: true, _id: session.id }
+    : { role: "Project Manager", active: true };
+
+  const users = await User.find(filter)
     .select("_id name email role")
     .sort({ name: 1 })
     .lean();
