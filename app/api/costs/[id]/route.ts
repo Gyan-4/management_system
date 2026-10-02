@@ -51,9 +51,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await connectDB();
     const existing = await CostEntry.findById(id).lean();
     if (!existing) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
-    const project = await Project.findById(existing.projectId).select("_id projectManagerId").lean();
+    const project = await Project.findById(existing.projectId).select("_id").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+    if (!canAccessProject(session.role, null, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
     if (boqItemId) {
       const boqItem = await BOQItem.findOne({ _id: boqItemId, projectId: existing.projectId }).lean();
       if (!boqItem) return NextResponse.json({ error: "BOQ item does not belong to this project" }, { status: 400 });
@@ -95,9 +95,9 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     await connectDB();
     const existing = await CostEntry.findById(id).lean();
     if (!existing) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
-    const project = await Project.findById(existing.projectId).select("_id projectManagerId").lean();
+    const project = await Project.findById(existing.projectId).select("_id").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+    if (!canAccessProject(session.role, null, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
     const result = await CostEntry.findByIdAndDelete(id);
     if (!result) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
     return NextResponse.json({ success: true });
