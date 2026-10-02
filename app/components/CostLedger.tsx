@@ -6,16 +6,20 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useProject } from "./ProjectContext";
 
 export type CostCategory = "Material" | "Labor" | "Equipment" | "Expense";
-type Project = { _id: string; name: string };
 type BOQItem = { _id: string; itemNo: string; description: string; category: string; unit: string; quantity: number; unitCost: number; totalCost?: number };
-type WorkSection = { _id: string; name: string; status: string; progress: number };
+type WorkItem = { _id?: string; description: string; category: string; quantity: number; unit: string; unitCost: number; actualCost?: number; boqItemId?: string | null };
+type WorkSection = { _id: string; name: string; status: string; progress: number; items?: WorkItem[] };
 type Entry = { _id: string; description: string; quantity: number; unit: string; unitCost: number; amount: number; date: string; supplierOrEmployee: string; referenceNo: string; notes: string; category?: CostCategory; boqItemId?: string | null; workSectionId?: string | null };
-
 type FormState = { description: string; quantity: string; unit: string; unitCost: string; amount: string; date: string; supplierOrEmployee: string; referenceNo: string; notes: string; boqItemId: string; workSectionId: string };
+
 const money = (n: number) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 }).format(n);
 
 function defaultForm(category: CostCategory): FormState {
   return { description: "", quantity: "1", unit: category === "Material" ? "pcs" : category === "Labor" ? "day" : category === "Equipment" ? "day" : "lot", unitCost: "0", amount: "0", date: new Date().toISOString().slice(0, 10), supplierOrEmployee: "", referenceNo: "", notes: "", boqItemId: "", workSectionId: "" };
+}
+
+function categoryMatches(itemCategory: string, category: CostCategory) {
+  return category === "Expense" ? itemCategory === "Other" : itemCategory === category;
 }
 
 export default function CostLedger({ category, title, description }: { category: CostCategory; title: string; description: string }) {
@@ -26,8 +30,8 @@ export default function CostLedger({ category, title, description }: { category:
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<FormState>(() => defaultForm(category));
 
@@ -64,81 +68,64 @@ export default function CostLedger({ category, title, description }: { category:
     if (!q) return entries;
     return entries.filter((entry) => [entry.description, entry.supplierOrEmployee, entry.referenceNo, entry.unit, entry.notes || ""].some((value) => String(value).toLowerCase().includes(q)));
   }, [entries, search]);
+
   const boqCategory = category === "Material" ? "Materials" : category === "Expense" ? "Other" : category;
   const plannedItems = useMemo(() => boqItems.filter((item) => item.category === boqCategory), [boqItems, boqCategory]);
   const plannedTotal = useMemo(() => plannedItems.reduce((sum, item) => sum + Number(item.totalCost ?? Number(item.quantity || 0) * Number(item.unitCost || 0)), 0), [plannedItems]);
+
+  const breakdownItems = useMemo(() => workSections.flatMap((section) =>
+    (section.items || [])
+      .filter((item) => categoryMatches(item.category, category))
+      .map((item) => ({
+        sectionName: section.name,
+        sectionId: section._id,
+        description: item.description,
+        quantity: Number(item.quantity || 0),
+        unit: item.unit || "—",
+        unitCost: Number(item.unitCost || 0),
+        estimated: Number(item.quantity || 0) * Number(item.unitCost || 0),
+        actual: Number(item.actualCost || 0),
+        boqItemId: item.boqItemId || null,
+      }))
+  ), [workSections, category]);
+
+  const breakdownEstimated = useMemo(() => breakdownItems.reduce((sum, item) => sum + item.estimated, 0), [breakdownItems]);
+  const breakdownActual = useMemo(() => breakdownItems.reduce((sum, item) => sum + item.actual, 0), [breakdownItems]);
+
   const calculated = (Number(form.quantity) || 0) * (Number(form.unitCost) || 0);
-  const selectedBOQ = useMemo(
-    () => plannedItems.find((item) => item._id === form.boqItemId) || null,
-    [plannedItems, form.boqItemId]
-  );
-  const selectedBOQActualQuantity = useMemo(
-    () =>
-      selectedBOQ
-        ? entries
-            .filter((entry) => entry.boqItemId === selectedBOQ._id && entry._id !== editingId)
-            .reduce((sum, entry) => sum + Number(entry.quantity || 0), 0)
-        : 0,
-    [entries, selectedBOQ, editingId]
-  );
-  const selectedBOQRemainingQuantity = selectedBOQ
-    ? Number(selectedBOQ.quantity || 0) - selectedBOQActualQuantity
-    : 0;
-  const selectedBOQPlannedCost = selectedBOQ
-    ? Number(selectedBOQ.totalCost ?? Number(selectedBOQ.quantity || 0) * Number(selectedBOQ.unitCost || 0))
-    : 0;
+  const selectedBOQ = useMemo(() => plannedItems.find((item) => item._id === form.boqItemId) || null, [plannedItems, form.boqItemId]);
+  const selectedBOQActualQuantity = useMemo(() => selectedBOQ ? entries.filter((entry) => entry.boqItemId === selectedBOQ._id && entry._id !== editingId).reduce((sum, entry) => sum + Number(entry.quantity || 0), 0) : 0, [entries, selectedBOQ, editingId]);
+  const selectedBOQRemainingQuantity = selectedBOQ ? Number(selectedBOQ.quantity || 0) - selectedBOQActualQuantity : 0;
+  const selectedBOQPlannedCost = selectedBOQ ? Number(selectedBOQ.totalCost ?? Number(selectedBOQ.quantity || 0) * Number(selectedBOQ.unitCost || 0)) : 0;
   const selectedEntryCost = category === "Expense" ? Number(form.amount) || 0 : calculated;
-  const selectedBOQActualCost = selectedBOQ
-    ? entries
-        .filter((entry) => entry.boqItemId === selectedBOQ._id && entry._id !== editingId)
-        .reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
-    : 0;
+  const selectedBOQActualCost = useMemo(() => selectedBOQ ? entries.filter((entry) => entry.boqItemId === selectedBOQ._id && entry._id !== editingId).reduce((sum, entry) => sum + Number(entry.amount || 0), 0) : 0, [entries, selectedBOQ, editingId]);
   const selectedBOQRemainingCost = selectedBOQ ? selectedBOQPlannedCost - selectedBOQActualCost : 0;
-  const quantityOverrun =
-    Boolean(selectedBOQ) &&
-    category !== "Expense" &&
-    Number(form.quantity || 0) > Math.max(0, selectedBOQRemainingQuantity);
-  const costOverrun =
-    Boolean(selectedBOQ) &&
-    selectedEntryCost > Math.max(0, selectedBOQRemainingCost);
+  const quantityOverrun = Boolean(selectedBOQ) && category !== "Expense" && Number(form.quantity || 0) > Math.max(0, selectedBOQRemainingQuantity);
+  const costOverrun = Boolean(selectedBOQ) && selectedEntryCost > Math.max(0, selectedBOQRemainingCost);
 
-  function openAdd() {
-    setEditingId(null);
-    setForm(defaultForm(category));
-    setError("");
-    setOpen(true);
-  }
-
+  function openAdd() { setEditingId(null); setForm(defaultForm(category)); setError(""); setOpen(true); }
   function openEdit(entry: Entry) {
     setEditingId(entry._id);
     setForm({ description: entry.description, quantity: String(entry.quantity), unit: entry.unit, unitCost: String(entry.unitCost), amount: String(entry.amount), date: entry.date.slice(0, 10), supplierOrEmployee: entry.supplierOrEmployee || "", referenceNo: entry.referenceNo || "", notes: entry.notes || "", boqItemId: entry.boqItemId || "", workSectionId: entry.workSectionId || "" });
-    setError("");
-    setOpen(true);
+    setError(""); setOpen(true);
   }
 
   async function saveEntry(event: FormEvent) {
     event.preventDefault();
     if (!projectId) return;
-    setSaving(true);
-    setError("");
+    setSaving(true); setError("");
     const endpoint = editingId ? `/api/costs/${editingId}` : "/api/costs";
     const method = editingId ? "PATCH" : "POST";
     const payload = { ...form, projectId, category, boqItemId: form.boqItemId || undefined, workSectionId: form.workSectionId || undefined, amount: category === "Expense" ? Number(form.amount) : calculated };
-
     try {
       const response = await fetch(endpoint, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not save this record.");
       if (editingId) setEntries((prev) => prev.map((entry) => entry._id === editingId ? data : entry));
       else setEntries((prev) => [data, ...prev]);
-      setOpen(false);
-      setEditingId(null);
-      setForm(defaultForm(category));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save this record.");
-    } finally {
-      setSaving(false);
-    }
+      setOpen(false); setEditingId(null); setForm(defaultForm(category));
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not save this record."); }
+    finally { setSaving(false); }
   }
 
   async function removeEntry(id: string) {
@@ -149,9 +136,7 @@ export default function CostLedger({ category, title, description }: { category:
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not delete this record.");
       setEntries((prev) => prev.filter((entry) => entry._id !== id));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not delete this record.");
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not delete this record."); }
   }
 
   return (
@@ -167,15 +152,24 @@ export default function CostLedger({ category, title, description }: { category:
         <div className="mb-5 grid gap-px overflow-hidden border border-slate-200 bg-slate-200 md:grid-cols-[1fr_220px_220px_220px]">
           <div className="bg-white p-4"><label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Project</label><select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="mt-1.5 w-full border-0 bg-white p-0 text-sm font-bold outline-none"><option value="">Select a project</option>{projects.map((project) => <option key={project._id} value={project._id}>{project.name}</option>)}</select></div>
           <div className="bg-white p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Recorded Entries</div><div className="mt-1 text-lg font-bold tabular-nums">{entries.length}</div></div>
-          <div className="bg-white p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Planned BOQ Cost</div><div className="mt-1 text-lg font-bold tabular-nums">{money(plannedTotal)}</div></div><div className="bg-white p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actual / Planned</div><div className={`mt-1 text-lg font-bold tabular-nums ${plannedTotal && total > plannedTotal ? "text-red-600" : "text-slate-900"}`}>{plannedTotal ? `${(total / plannedTotal * 100).toFixed(1)}%` : "—"}</div></div>
+          <div className="bg-white p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Planned BOQ Cost</div><div className="mt-1 text-lg font-bold tabular-nums">{money(plannedTotal)}</div></div>
+          <div className="bg-white p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actual / Planned</div><div className={`mt-1 text-lg font-bold tabular-nums ${plannedTotal && total > plannedTotal ? "text-red-600" : "text-slate-900"}`}>{plannedTotal ? `${(total / plannedTotal * 100).toFixed(1)}%` : "—"}</div></div>
         </div>
+
+        <section className="mb-6 border border-slate-200 bg-white">
+          <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div><h2 className="font-bold text-slate-900">{category === "Expense" ? "Other / Expense" : category} from Project Breakdown</h2><p className="mt-1 text-xs text-slate-500">Planned and manual actuals saved in Breakdown. These are not duplicated into the cost ledger.</p></div>
+            <div className="flex gap-5 text-right text-xs"><div><div className="text-[10px] font-bold uppercase text-slate-500">Estimated</div><div className="font-bold">{money(breakdownEstimated)}</div></div><div><div className="text-[10px] font-bold uppercase text-slate-500">Actual</div><div className="font-bold">{money(breakdownActual)}</div></div></div>
+          </div>
+          {breakdownItems.length ? <div className="overflow-x-auto"><table className="data-table min-w-[850px] text-sm"><thead><tr><th>Work Section</th><th>Description</th><th>BOQ</th><th className="text-right">Planned Qty</th><th>Unit</th><th className="text-right">Rate</th><th className="text-right">Estimated</th><th className="text-right">Actual</th><th className="text-right">Variance</th></tr></thead><tbody>{breakdownItems.map((item,index)=>{const variance=item.estimated-item.actual;return <tr key={item.sectionId+"-"+item.description+"-"+index}><td className="font-semibold">{item.sectionName}</td><td>{item.description}</td><td>{item.boqItemId ? (boqItems.find((b)=>b._id===item.boqItemId)?.itemNo || "Linked") : "—"}</td><td className="text-right tabular-nums">{item.quantity.toLocaleString()}</td><td>{item.unit}</td><td className="text-right tabular-nums">{money(item.unitCost)}</td><td className="text-right font-semibold tabular-nums">{money(item.estimated)}</td><td className="text-right font-semibold tabular-nums">{money(item.actual)}</td><td className={`text-right font-bold tabular-nums ${variance<0?"text-red-600":"text-slate-900"}`}>{money(variance)}</td></tr>})}</tbody><tfoot><tr><td colSpan={6} className="text-right font-bold">BREAKDOWN TOTAL</td><td className="text-right font-bold">{money(breakdownEstimated)}</td><td className="text-right font-bold">{money(breakdownActual)}</td><td className="text-right font-bold">{money(breakdownEstimated-breakdownActual)}</td></tr></tfoot></table></div> : <div className="p-10 text-center text-sm text-slate-500">No {category === "Expense" ? "Other / Expense" : category} items have been added to the Project Breakdown yet.</div>}
+        </section>
 
         <div className="mb-4 flex items-center gap-3 border border-slate-200 bg-white p-4">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search description, supplier, reference..." className="min-w-0 flex-1 border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500" />
           <span className="whitespace-nowrap text-xs font-semibold text-slate-500">{filteredEntries.length} of {entries.length} records</span>
         </div>
         <div className="overflow-x-auto border border-slate-200 bg-white">
-          {loading ? <div className="p-12 text-center text-sm text-slate-500">Loading register...</div> : <table className="data-table min-w-[1100px] text-sm"><thead><tr><th>Date</th><th>Description</th><th>BOQ Baseline</th><th>Work Section</th><th>Supplier / Employee</th><th>Reference</th><th className="text-right">Qty</th><th>Unit</th><th className="text-right">Unit Cost</th><th className="text-right">Actual Amount</th><th className="text-right">Actions</th></tr></thead><tbody>{filteredEntries.map((entry) => <tr key={entry._id}><td className="whitespace-nowrap">{new Date(entry.date).toLocaleDateString("en-PH")}</td><td className="font-semibold text-slate-900">{entry.description}</td><td>{entry.boqItemId ? (boqItems.find((item) => item._id === entry.boqItemId)?.itemNo || "Linked") : "—"}</td><td>{entry.workSectionId ? (workSections.find((section) => section._id === entry.workSectionId)?.name || "Linked") : "—"}</td><td>{entry.supplierOrEmployee || "—"}</td><td>{entry.referenceNo || "—"}</td><td className="text-right tabular-nums">{entry.quantity}</td><td>{entry.unit}</td><td className="text-right tabular-nums">{money(entry.unitCost)}</td><td className="text-right font-bold tabular-nums">{money(entry.amount)}</td><td><div className="flex justify-end gap-1"><button aria-label={`Edit ${entry.description}`} onClick={() => openEdit(entry)} className="p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"><Pencil size={15} /></button><button aria-label={`Delete ${entry.description}`} onClick={() => removeEntry(entry._id)} className="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button></div></td></tr>)}</tbody>{filteredEntries.length > 0 && <tfoot><tr><td colSpan={9} className="text-right font-bold">REGISTER TOTAL</td><td className="text-right text-base font-bold">{money(total)}</td><td /></tr></tfoot>}</table>}
+          {loading ? <div className="p-12 text-center text-sm text-slate-500">Loading register...</div> : <table className="data-table min-w-[1100px] text-sm"><thead><tr><th>Date</th><th>Description</th><th>BOQ Baseline</th><th>Work Section</th><th>Supplier / Employee</th><th>Reference</th><th className="text-right">Qty</th><th>Unit</th><th className="text-right">Unit Cost</th><th className="text-right">Actual Amount</th><th className="text-right">Actions</th></tr></thead><tbody>{filteredEntries.map((entry) => <tr key={entry._id}><td className="whitespace-nowrap">{new Date(entry.date).toLocaleDateString("en-PH")}</td><td className="font-semibold text-slate-900">{entry.description}</td><td>{entry.boqItemId ? (boqItems.find((item) => item._id === entry.boqItemId)?.itemNo || "Linked") : "—"}</td><td>{entry.workSectionId ? (workSections.find((section) => section._id === entry.workSectionId)?.name || "Linked") : "—"}</td><td>{entry.supplierOrEmployee || "—"}</td><td>{entry.referenceNo || "—"}</td><td className="text-right tabular-nums">{entry.quantity}</td><td>{entry.unit}</td><td className="text-right tabular-nums">{money(entry.unitCost)}</td><td className="text-right font-bold tabular-nums">{money(entry.amount)}</td><td><div className="flex justify-end gap-1"><button aria-label={`Edit ${entry.description}`} onClick={() => openEdit(entry)} className="p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"><Pencil size={15} /></button><button aria-label={`Delete ${entry.description}`} onClick={() => removeEntry(entry._id)} className="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button></div></td></tr>)}</tbody>{filteredEntries.length > 0 && <tfoot><tr><td colSpan={9} className="text-right font-bold">REGISTER TOTAL</td><td className="text-right text-base font-bold">{money(total)}</td><td /></tr>}</table>}
           {!loading && entries.length === 0 && <div className="p-12 text-center text-sm text-slate-500">No {title.toLowerCase()} records for this project.</div>}{!loading && entries.length > 0 && filteredEntries.length === 0 && <div className="p-12 text-center text-sm text-slate-500">No records match the current search.</div>}
         </div>
 
