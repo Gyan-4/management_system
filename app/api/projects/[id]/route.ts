@@ -37,7 +37,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const project = await Project.findByIdAndUpdate(id, {
       name: body.name.trim(), client: body.client.trim(), location: body.location?.trim() || "",
       contractAmount, budget, startDate, endDate, status,
-      projectManager: "", projectManagerId: null,
       description: body.description?.trim() || "",
     }, { new: true, runValidators: true }).lean();
 
