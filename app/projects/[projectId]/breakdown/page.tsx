@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, ChevronUp, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
@@ -137,7 +138,7 @@ export default function ProjectBreakdownPage({ params }: { params: Promise<{ pro
     await load();
   }
 
-  async function saveSection(e: React.FormEvent) {
+  async function saveSection(e: FormEvent) {
     e.preventDefault();
     if (!editing) return;
     setSaving(true);
