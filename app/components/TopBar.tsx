@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { BarChart3, Building2, ChevronDown, ClipboardList, FileText, KeyRound, LayoutDashboard, Loader2, LogOut, Menu, Package, Receipt, Settings, Truck, Users, X } from "lucide-react";
 import { useProject } from "./ProjectContext";
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 
 const nav = [
   ["Overview", "/"], ["Projects", "/projects"], ["BOQ", "/boq"], ["Materials", "/materials"], ["Labor", "/labor"], ["Equipment", "/equipment"], ["Expenses", "/expenses"], ["Cost Analysis", "/cost-analysis"], ["Progress", "/progress"], ["Reports", "/reports"],
@@ -20,7 +21,7 @@ export default function TopBar(){
  function select(id:string){setProjectId(id);setProjectOpen(false);}
  async function logout(){await fetch("/api/auth/logout",{method:"POST"});router.replace("/login");router.refresh();}
  function openAccount(){setAccountOpen(true);setPasswordError("");setPasswordSuccess("");setCurrentPassword("");setNewPassword("");}
- async function changePassword(event:React.FormEvent){event.preventDefault();setPasswordSaving(true);setPasswordError("");setPasswordSuccess("");try{const response=await fetch("/api/auth/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({currentPassword,newPassword})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Could not change password.");setPasswordSuccess("Password changed successfully.");setCurrentPassword("");setNewPassword("");}catch(error){setPasswordError(error instanceof Error?error.message:"Could not change password.");}finally{setPasswordSaving(false);}}
+ async function changePassword(event:FormEvent){event.preventDefault();setPasswordSaving(true);setPasswordError("");setPasswordSuccess("");try{const response=await fetch("/api/auth/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({currentPassword,newPassword})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Could not change password.");setPasswordSuccess("Password changed successfully.");setCurrentPassword("");setNewPassword("");}catch(error){setPasswordError(error instanceof Error?error.message:"Could not change password.");}finally{setPasswordSaving(false);}}
  return <>
   <header className="fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white">
    <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-4 md:px-7">
