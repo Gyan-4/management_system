@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, AlertTriangle, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Activity, AlertTriangle, Plus, Trash2, X } from "lucide-react";
 
 type Project={_id:string;name:string;contractAmount:number};
 type RecordItem={_id:string;progressDate:string;percentage:number;milestone:string;notes:string};
