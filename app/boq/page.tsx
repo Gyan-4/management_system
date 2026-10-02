@@ -230,7 +230,7 @@ export default function BOQPage() {
               <h2 className="mt-1 text-xl font-bold">{editingId ? "Edit Estimate" : "Add Estimate Line"}</h2>
             </div>
             <div className="grid gap-4 p-6 sm:grid-cols-2">
-              <Field label="Item No." value={form.itemNo} onChange={v => setForm({ ...form, itemNo: v })} />
+              <div><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Item No.</span><div className="mt-1.5 border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-mono text-slate-600">{form.itemNo || "Auto"}</div></div>
               <label><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Work Section *</span><select required value={form.workSectionId} onChange={e => setForm({ ...form, workSectionId: e.target.value })} className="mt-1.5 w-full border border-slate-300 px-3 py-2.5 text-sm"><option value="">Select section</option>{sections.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}</select></label>
               <Field label="Description" required value={form.description} onChange={v => setForm({ ...form, description: v })} />
               <label><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Category *</span><select required value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="mt-1.5 w-full border border-slate-300 px-3 py-2.5 text-sm">{categories.map(c => <option key={c}>{c}</option>)}</select></label>
