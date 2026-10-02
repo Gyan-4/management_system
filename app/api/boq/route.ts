@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import BOQItem from "@/models/BOQItem";
+import CostEntry from "@/models/CostEntry";
 import Project from "@/models/Project";
 import { getSession, canAccessProject } from "@/lib/session";
 
@@ -10,21 +11,63 @@ export async function GET(request: NextRequest) {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     await connectDB();
+
     const projectId = request.nextUrl.searchParams.get("projectId");
     if (projectId && !mongoose.Types.ObjectId.isValid(projectId)) {
       return NextResponse.json({ error: "Invalid project id" }, { status: 400 });
     }
+
     let filter: Record<string, unknown> = projectId ? { projectId } : {};
     if (projectId) {
       const project = await Project.findById(projectId).select("_id projectManagerId").lean();
       if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-      if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+      if (!canAccessProject(session.role, project.projectManagerId, session.id)) {
+        return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+      }
     } else if (session.role === "Project Manager") {
       const assigned = await Project.find({ projectManagerId: session.id }).select("_id").lean();
       filter = { projectId: { $in: assigned.map((p) => p._id) } };
     }
+
     const items = await BOQItem.find(filter).sort({ itemNo: 1 }).lean();
-    return NextResponse.json(items);
+    if (!items.length) return NextResponse.json([]);
+
+    const itemIds = items.map((item) => item._id);
+    const actuals = await CostEntry.aggregate([
+      { $match: { boqItemId: { $in: itemIds } } },
+      {
+        $group: {
+          _id: "$boqItemId",
+          actualQuantity: { $sum: "$quantity" },
+          actualCost: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    const actualMap = new Map(
+      actuals.map((entry) => [
+        String(entry._id),
+        {
+          actualQuantity: Number(entry.actualQuantity || 0),
+          actualCost: Number(entry.actualCost || 0),
+        },
+      ])
+    );
+
+    return NextResponse.json(
+      items.map((item) => {
+        const actual = actualMap.get(String(item._id)) || { actualQuantity: 0, actualCost: 0 };
+        const plannedQuantity = Number(item.quantity || 0);
+        const plannedCost = Number(item.totalCost ?? plannedQuantity * Number(item.unitCost || 0));
+        return {
+          ...item,
+          actualQuantity: actual.actualQuantity,
+          actualCost: actual.actualCost,
+          quantityVariance: plannedQuantity - actual.actualQuantity,
+          costVariance: plannedCost - actual.actualCost,
+        };
+      })
+    );
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to fetch BOQ items" }, { status: 500 });
