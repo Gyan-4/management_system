@@ -15,7 +15,6 @@ export async function GET(request: NextRequest) {
     const project = await Project.findById(projectId).select("_id projectManagerId").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
     if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
-    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
     return NextResponse.json(await ProjectProgress.find({ projectId }).sort({ progressDate: -1, createdAt: -1 }).lean());
   } catch (error) { console.error(error); return NextResponse.json({ error: "Failed to fetch progress" }, { status: 500 }); }
 }
@@ -34,6 +33,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const project = await Project.findById(body.projectId).select("_id projectManagerId").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
 
     const progress = await ProjectProgress.create({ projectId: body.projectId, progressDate, percentage, milestone: String(body.milestone || "").trim(), notes: String(body.notes || "").trim() });
     return NextResponse.json(progress, { status: 201 });

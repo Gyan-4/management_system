@@ -27,7 +27,6 @@ export async function GET(_request: NextRequest, { params }: Context) {
     const project = await Project.findById(projectId).select("_id projectManagerId").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
     if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
-    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
     const [sections, costs] = await Promise.all([
       WorkSection.find({ projectId }).sort({ order: 1, createdAt: 1 }).lean(),
       CostEntry.find({ projectId }).select("workSectionId boqItemId quantity amount").lean(),
@@ -79,6 +78,7 @@ export async function POST(request: NextRequest, { params }: Context) {
 
     const project = await Project.findById(projectId).select("_id projectManagerId").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
 
     const existingCount = await WorkSection.countDocuments({ projectId });
     const names = existingCount === 0 && body.useDefaultTemplate !== false
