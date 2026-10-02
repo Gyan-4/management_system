@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { connectDB } from "@/lib/mongodb";
 import { hashPassword, verifySession } from "@/lib/auth";
 import User from "@/models/User";
+import Project from "@/models/Project";
 
 async function requireAdmin() {
   const token = (await cookies()).get("constructflow_session")?.value;
@@ -139,6 +140,26 @@ export async function PATCH(request: Request) {
       { error: "You cannot deactivate or remove administrator access from your own account." },
       { status: 400 },
     );
+  }
+
+  if (user.role === "Project Manager" && role !== "Project Manager") {
+    const assignedCount = await Project.countDocuments({ projectManagerId: user._id });
+    if (assignedCount > 0) {
+      return NextResponse.json(
+        { error: "Reassign this user's projects before changing their role." },
+        { status: 400 },
+      );
+    }
+  }
+
+  if (user.role === "Project Manager" && !active) {
+    const assignedCount = await Project.countDocuments({ projectManagerId: user._id });
+    if (assignedCount > 0) {
+      return NextResponse.json(
+        { error: "Reassign this user's projects before deactivating their account." },
+        { status: 400 },
+      );
+    }
   }
 
   if (user.role === "Admin" && (role !== "Admin" || !active)) {
