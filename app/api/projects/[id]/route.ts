@@ -6,17 +6,7 @@ import BOQItem from "@/models/BOQItem";
 import CostEntry from "@/models/CostEntry";
 import ProjectProgress from "@/models/ProjectProgress";
 import WorkSection from "@/models/WorkSection";
-import User from "@/models/User";
 import { getSession, canManageAllProjects } from "@/lib/session";
-
-async function resolveManager(value: unknown) {
-  const id = String(value || "").trim();
-  if (!id) return { id: null, name: "" };
-  if (!mongoose.Types.ObjectId.isValid(id)) throw new Error("Invalid project manager");
-  const user = await User.findOne({ _id: id, role: "Project Manager", active: true }).select("_id name").lean();
-  if (!user) throw new Error("Selected project manager is not an active Project Manager");
-  return { id: user._id, name: user.name };
-}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -43,15 +33,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await connectDB();
     const existing = await Project.findById(id).lean();
     if (!existing) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    if (!canManageAllProjects(session.role) && String(existing.projectManagerId || "") !== session.id) return NextResponse.json({ error: "You can only edit projects assigned to you" }, { status: 403 });
-    if (!["Admin", "Engineer", "Project Manager"].includes(session.role)) return NextResponse.json({ error: "You do not have permission to edit project records" }, { status: 403 });
-    const requestedManagerId = String(body.projectManagerId || "").trim();
-    if (session.role === "Project Manager" && requestedManagerId && requestedManagerId !== session.id) return NextResponse.json({ error: "Project Managers cannot reassign a project to another user" }, { status: 403 });
-    const manager = session.role === "Project Manager" ? await resolveManager(session.id) : await resolveManager(requestedManagerId);
+    if (!canManageAllProjects(session.role)) return NextResponse.json({ error: "Only Admin or Engineer users can edit project records" }, { status: 403 });
     const project = await Project.findByIdAndUpdate(id, {
       name: body.name.trim(), client: body.client.trim(), location: body.location?.trim() || "",
       contractAmount, budget, startDate, endDate, status,
-      projectManager: manager.name, projectManagerId: manager.id,
+      projectManager: "", projectManagerId: null,
       description: body.description?.trim() || "",
     }, { new: true, runValidators: true }).lean();
 
