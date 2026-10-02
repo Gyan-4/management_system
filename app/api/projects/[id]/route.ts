@@ -13,8 +13,8 @@ async function resolveManager(value: unknown) {
   const id = String(value || "").trim();
   if (!id) return { id: null, name: "" };
   if (!mongoose.Types.ObjectId.isValid(id)) throw new Error("Invalid project manager");
-  const user = await User.findOne({ _id: id, role: { $in: ["Project Manager", "Admin"] }, active: true }).select("_id name").lean();
-  if (!user) throw new Error("Selected project manager is not an active Project Manager or Admin");
+  const user = await User.findOne({ _id: id, role: "Project Manager", active: true }).select("_id name").lean();
+  if (!user) throw new Error("Selected project manager is not an active Project Manager");
   return { id: user._id, name: user.name };
 }
 
