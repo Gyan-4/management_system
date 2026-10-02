@@ -142,26 +142,6 @@ export async function PATCH(request: Request) {
     );
   }
 
-  if (user.role === "Project Manager" && role !== "Project Manager") {
-    const assignedCount = await Project.countDocuments({ projectManagerId: user._id });
-    if (assignedCount > 0) {
-      return NextResponse.json(
-        { error: "Reassign this user's projects before changing their role." },
-        { status: 400 },
-      );
-    }
-  }
-
-  if (user.role === "Project Manager" && !active) {
-    const assignedCount = await Project.countDocuments({ projectManagerId: user._id });
-    if (assignedCount > 0) {
-      return NextResponse.json(
-        { error: "Reassign this user's projects before deactivating their account." },
-        { status: 400 },
-      );
-    }
-  }
-
   if (user.role === "Admin" && (role !== "Admin" || !active)) {
     const adminCount = await User.countDocuments({ role: "Admin", active: true });
     if (adminCount <= 1) {
