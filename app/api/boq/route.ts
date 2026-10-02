@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/mongodb";
 import BOQItem from "@/models/BOQItem";
 import CostEntry from "@/models/CostEntry";
 import Project from "@/models/Project";
+import WorkSection from "@/models/WorkSection";
 import { getSession, canAccessProject } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid project id" }, { status: 400 });
     }
 
-    let filter: Record<string, unknown> = projectId ? { projectId } : {};
+    const filter: Record<string, unknown> = projectId ? { projectId } : {};
     if (projectId) {
       const project = await Project.findById(projectId).select("_id").lean();
       if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -51,6 +52,12 @@ export async function GET(request: NextRequest) {
       ])
     );
 
+    const sectionIds = items.map((item) => item.workSectionId).filter(Boolean);
+    const sections = sectionIds.length
+      ? await WorkSection.find({ _id: { $in: sectionIds } }).select("_id name").lean()
+      : [];
+    const sectionMap = new Map(sections.map((section) => [String(section._id), section.name]));
+
     return NextResponse.json(
       items.map((item) => {
         const actual = actualMap.get(String(item._id)) || { actualQuantity: 0, actualCost: 0 };
@@ -58,6 +65,7 @@ export async function GET(request: NextRequest) {
         const plannedCost = Number(item.totalCost ?? plannedQuantity * Number(item.unitCost || 0));
         return {
           ...item,
+          workSectionName: item.workSectionId ? sectionMap.get(String(item.workSectionId)) || "" : "",
           actualQuantity: actual.actualQuantity,
           actualCost: actual.actualCost,
           quantityVariance: plannedQuantity - actual.actualQuantity,
@@ -89,16 +97,23 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
     const project = await Project.findById(body.projectId).select("budget").lean();
-    if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    }
+    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
     if (!canAccessProject(session.role, null, session.id)) {
       return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
     }
 
+    let workSectionId: string | null = null;
+    if (body.workSectionId) {
+      if (!mongoose.Types.ObjectId.isValid(body.workSectionId)) {
+        return NextResponse.json({ error: "Invalid work section" }, { status: 400 });
+      }
+      const section = await WorkSection.findOne({ _id: body.workSectionId, projectId }).select("_id").lean();
+      if (!section) return NextResponse.json({ error: "Work section does not belong to this project" }, { status: 400 });
+      workSectionId = body.workSectionId;
+    }
+
     const quantity = Number(body.quantity);
     const unitCost = Number(body.unitCost);
-
     if (!Number.isFinite(quantity) || quantity < 0 || !Number.isFinite(unitCost) || unitCost < 0) {
       return NextResponse.json({ error: "Quantity and unit cost must be valid non-negative numbers" }, { status: 400 });
     }
@@ -115,6 +130,7 @@ export async function POST(request: NextRequest) {
 
     const item = await BOQItem.create({
       projectId: body.projectId,
+      workSectionId,
       itemNo,
       description,
       category: body.category,
