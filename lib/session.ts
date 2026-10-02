@@ -10,10 +10,10 @@ export function canManageAllProjects(role: string) {
   return role === "Admin" || role === "Engineer";
 }
 
-export function canAccessProject(role: string, _projectManagerId: unknown, _sessionId: string) {
+export function canAccessProject(role: string) {
   return role === "Admin" || role === "Engineer";
 }
 
-export function canEditProjectData(role: string, _projectManagerId: unknown, _sessionId: string) {
+export function canEditProjectData(role: string) {
   return role === "Admin" || role === "Engineer";
 }
