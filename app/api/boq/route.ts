@@ -19,14 +19,11 @@ export async function GET(request: NextRequest) {
 
     let filter: Record<string, unknown> = projectId ? { projectId } : {};
     if (projectId) {
-      const project = await Project.findById(projectId).select("_id projectManagerId").lean();
+      const project = await Project.findById(projectId).select("_id").lean();
       if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-      if (!canAccessProject(session.role, project.projectManagerId, session.id)) {
+      if (!canAccessProject(session.role, null, session.id)) {
         return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
       }
-    } else if (session.role === "Project Manager") {
-      const assigned = await Project.find({ projectManagerId: session.id }).select("_id").lean();
-      filter = { projectId: { $in: assigned.map((p) => p._id) } };
     }
 
     const items = await BOQItem.find(filter).sort({ itemNo: 1 }).lean();
@@ -91,11 +88,11 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
-    const project = await Project.findById(body.projectId).select("budget projectManagerId").lean();
+    const project = await Project.findById(body.projectId).select("budget").lean();
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
-    if (!canAccessProject(session.role, project.projectManagerId, session.id)) {
+    if (!canAccessProject(session.role, null, session.id)) {
       return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
     }
 
