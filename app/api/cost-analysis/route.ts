@@ -6,6 +6,7 @@ import CostEntry from "@/models/CostEntry";
 import Project from "@/models/Project";
 import WorkSection from "@/models/WorkSection";
 import ProjectProgress from "@/models/ProjectProgress";
+import { getSession, canAccessProject } from "@/lib/session";
 
 type WorkItem = { category: "Material" | "Labor" | "Equipment" | "Other"; quantity?: number; unitCost?: number; actualCost?: number };
 type WorkSectionRow = { _id: unknown; name: string; status: string; progress: number; items: WorkItem[] };
@@ -29,6 +30,8 @@ export async function GET(request: NextRequest) {
   try {
     const projectId = request.nextUrl.searchParams.get("projectId");
     if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) return NextResponse.json({ error: "Valid projectId is required" }, { status: 400 });
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     await connectDB();
 
     const [project, boq, actual, sections, latestProgress] = await Promise.all([
@@ -39,6 +42,7 @@ export async function GET(request: NextRequest) {
       ProjectProgress.findOne({ projectId }).sort({ progressDate: -1, createdAt: -1 }).lean(),
     ]);
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
 
     const sectionRows = sections as unknown as WorkSectionRow[];
     const actualBySection = new Map<string, number>();

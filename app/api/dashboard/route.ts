@@ -4,6 +4,7 @@ import Project from "@/models/Project";
 import BOQItem from "@/models/BOQItem";
 import CostEntry from "@/models/CostEntry";
 import WorkSection from "@/models/WorkSection";
+import { getSession } from "@/lib/session";
 
 const finite = (value: unknown, fallback = 0) => {
   const number = Number(value);
@@ -29,9 +30,12 @@ function projectCompletion(sections: Array<{ progress?: number; items?: Array<{ 
 
 export async function GET() {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     await connectDB();
+    const projectFilter = session.role === "Project Manager" ? { projectManagerId: session.id } : {};
     const [projects, boq, costs, sections] = await Promise.all([
-      Project.find().lean(),
+      Project.find(projectFilter).lean(),
       BOQItem.find().lean(),
       CostEntry.find().lean(),
       WorkSection.find().lean(),
