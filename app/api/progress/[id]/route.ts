@@ -3,9 +3,12 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import ProjectProgress from "@/models/ProjectProgress";
 import Project from "@/models/Project";
+import { getSession, canAccessProject } from "@/lib/session";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Invalid progress ID" }, { status: 400 });
 
@@ -29,8 +32,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Valid projectId is required" }, { status: 400 });
     }
 
-    const project = await Project.findById(projectId).select("_id").lean();
+    const project = await Project.findById(projectId).select("_id projectManagerId").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
 
     existing.projectId = new mongoose.Types.ObjectId(projectId);
     existing.progressDate = progressDate;
@@ -48,9 +52,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Invalid progress ID" }, { status: 400 });
     await connectDB();
+    const existing = await ProjectProgress.findById(id).lean();
+    if (!existing) return NextResponse.json({ error: "Progress record not found" }, { status: 404 });
+    const project = await Project.findById(existing.projectId).select("_id projectManagerId").lean();
+    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
     const result = await ProjectProgress.findByIdAndDelete(id);
     if (!result) return NextResponse.json({ error: "Progress record not found" }, { status: 404 });
     return NextResponse.json({ success: true });

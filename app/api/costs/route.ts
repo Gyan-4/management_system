@@ -5,6 +5,7 @@ import CostEntry from "@/models/CostEntry";
 import BOQItem from "@/models/BOQItem";
 import WorkSection from "@/models/WorkSection";
 import Project from "@/models/Project";
+import { getSession, canAccessProject } from "@/lib/session";
 
 const categories = ["Material", "Labor", "Equipment", "Expense"] as const;
 
@@ -19,6 +20,8 @@ function validNumber(value: unknown, fallback = 0) {
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     await connectDB();
     const projectId = request.nextUrl.searchParams.get("projectId");
     const category = request.nextUrl.searchParams.get("category");
@@ -26,7 +29,13 @@ export async function GET(request: NextRequest) {
 
     if (projectId) {
       if (!mongoose.Types.ObjectId.isValid(projectId)) return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
+      const project = await Project.findById(projectId).select("_id projectManagerId").lean();
+      if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
       filter.projectId = projectId;
+    } else if (session.role === "Project Manager") {
+      const assigned = await Project.find({ projectManagerId: session.id }).select("_id").lean();
+      filter.projectId = { $in: assigned.map((p) => p._id) };
     }
     if (category) {
       if (!categories.includes(category as (typeof categories)[number])) return NextResponse.json({ error: "Invalid cost category" }, { status: 400 });
@@ -43,6 +52,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const body = await request.json();
     const projectId = String(body.projectId || "").trim();
     const boqItemId = String(body.boqItemId || "").trim();
@@ -70,10 +81,11 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const project = await Project.findById(projectId).select("_id").lean();
+    const project = await Project.findById(projectId).select("_id projectManagerId").lean();
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
+    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
 
     const parsedDate = new Date(date);
     if (Number.isNaN(parsedDate.getTime())) {

@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import Project from "@/models/Project";
 import WorkSection from "@/models/WorkSection";
 import CostEntry from "@/models/CostEntry";
+import { getSession, canAccessProject } from "@/lib/session";
 
 type Context = { params: Promise<{ projectId: string }> };
 
@@ -19,8 +20,14 @@ const DEFAULT_SECTIONS = [
 
 export async function GET(_request: NextRequest, { params }: Context) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { projectId } = await params;
     await connectDB();
+    const project = await Project.findById(projectId).select("_id projectManagerId").lean();
+    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
+    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
     const [sections, costs] = await Promise.all([
       WorkSection.find({ projectId }).sort({ order: 1, createdAt: 1 }).lean(),
       CostEntry.find({ projectId }).select("workSectionId boqItemId quantity amount").lean(),
@@ -64,11 +71,13 @@ export async function GET(_request: NextRequest, { params }: Context) {
 
 export async function POST(request: NextRequest, { params }: Context) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { projectId } = await params;
     const body = await request.json();
     await connectDB();
 
-    const project = await Project.findById(projectId).lean();
+    const project = await Project.findById(projectId).select("_id projectManagerId").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
     const existingCount = await WorkSection.countDocuments({ projectId });

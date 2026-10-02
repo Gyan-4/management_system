@@ -4,6 +4,8 @@ import { connectDB } from "@/lib/mongodb";
 import CostEntry from "@/models/CostEntry";
 import BOQItem from "@/models/BOQItem";
 import WorkSection from "@/models/WorkSection";
+import Project from "@/models/Project";
+import { getSession, canAccessProject } from "@/lib/session";
 
 const categories = ["Material", "Labor", "Equipment", "Expense"] as const;
 
@@ -18,6 +20,8 @@ function validNumber(value: unknown, fallback = 0) {
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Invalid entry ID" }, { status: 400 });
     const body = await request.json();
@@ -47,6 +51,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await connectDB();
     const existing = await CostEntry.findById(id).lean();
     if (!existing) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+    const project = await Project.findById(existing.projectId).select("_id projectManagerId").lean();
+    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
     if (boqItemId) {
       const boqItem = await BOQItem.findOne({ _id: boqItemId, projectId: existing.projectId }).lean();
       if (!boqItem) return NextResponse.json({ error: "BOQ item does not belong to this project" }, { status: 400 });
@@ -81,9 +88,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Invalid entry ID" }, { status: 400 });
     await connectDB();
+    const existing = await CostEntry.findById(id).lean();
+    if (!existing) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+    const project = await Project.findById(existing.projectId).select("_id projectManagerId").lean();
+    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    if (!canAccessProject(session.role, project.projectManagerId, session.id)) return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
     const result = await CostEntry.findByIdAndDelete(id);
     if (!result) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
     return NextResponse.json({ success: true });
