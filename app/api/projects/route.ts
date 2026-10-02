@@ -3,7 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import Project from "@/models/Project";
 import WorkSection from "@/models/WorkSection";
 import CostEntry from "@/models/CostEntry";
-import { getSession, canManageAllProjects } from "@/lib/session";
+import { getSession } from "@/lib/session";
 
 const finite = (value: unknown, fallback = 0) => {
   const number = Number(value);
@@ -32,7 +32,7 @@ export async function GET() {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     await connectDB();
-    const projectFilter = canManageAllProjects(session.role) ? {} : { _id: { $exists: false } };
+    const projectFilter = {};
     const projects = await Project.find(projectFilter).sort({ createdAt: -1 }).lean();
     const projectIds = projects.map((project) => project._id);
     const [sections, costEntries] = await Promise.all([
