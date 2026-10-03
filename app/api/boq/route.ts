@@ -33,22 +33,13 @@ export async function GET(request: NextRequest) {
     const itemIds = items.map((item) => item._id);
     const actuals = await CostEntry.aggregate([
       { $match: { boqItemId: { $in: itemIds } } },
-      {
-        $group: {
-          _id: "$boqItemId",
-          actualQuantity: { $sum: "$quantity" },
-          actualCost: { $sum: "$amount" },
-        },
-      },
+      { $group: { _id: "$boqItemId", actualQuantity: { $sum: "$quantity" }, actualCost: { $sum: "$amount" } } },
     ]);
 
     const actualMap = new Map(
       actuals.map((entry) => [
         String(entry._id),
-        {
-          actualQuantity: Number(entry.actualQuantity || 0),
-          actualCost: Number(entry.actualCost || 0),
-        },
+        { actualQuantity: Number(entry.actualQuantity || 0), actualCost: Number(entry.actualCost || 0) },
       ])
     );
 
@@ -58,21 +49,19 @@ export async function GET(request: NextRequest) {
       : [];
     const sectionMap = new Map(sections.map((section) => [String(section._id), section.name]));
 
-    return NextResponse.json(
-      items.map((item) => {
-        const actual = actualMap.get(String(item._id)) || { actualQuantity: 0, actualCost: 0 };
-        const plannedQuantity = Number(item.quantity || 0);
-        const plannedCost = Number(item.totalCost ?? plannedQuantity * Number(item.unitCost || 0));
-        return {
-          ...item,
-          workSectionName: item.workSectionId ? sectionMap.get(String(item.workSectionId)) || "" : "",
-          actualQuantity: actual.actualQuantity,
-          actualCost: actual.actualCost,
-          quantityVariance: plannedQuantity - actual.actualQuantity,
-          costVariance: plannedCost - actual.actualCost,
-        };
-      })
-    );
+    return NextResponse.json(items.map((item) => {
+      const actual = actualMap.get(String(item._id)) || { actualQuantity: 0, actualCost: 0 };
+      const plannedQuantity = Number(item.quantity || 0);
+      const plannedCost = Number(item.totalCost ?? plannedQuantity * Number(item.unitCost || 0));
+      return {
+        ...item,
+        workSectionName: item.workSectionId ? sectionMap.get(String(item.workSectionId)) || "" : "",
+        actualQuantity: actual.actualQuantity,
+        actualCost: actual.actualCost,
+        quantityVariance: plannedQuantity - actual.actualQuantity,
+        costVariance: plannedCost - actual.actualCost,
+      };
+    }));
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to fetch BOQ items" }, { status: 500 });
@@ -98,8 +87,8 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
-    const projectIdValue: string = projectId;
-    const project = await Project.findById(projectIdValue).select("budget").lean();
+
+    const project = await Project.findById(projectId).select("budget").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
     if (!canAccessProject(session.role, null, session.id)) {
       return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
@@ -107,12 +96,16 @@ export async function POST(request: NextRequest) {
 
     let workSectionId: string | null = null;
     if (body.workSectionId) {
-      if (!mongoose.Types.ObjectId.isValid(body.workSectionId)) {
+      const workSectionIdValue = String(body.workSectionId).trim();
+      if (!mongoose.Types.ObjectId.isValid(workSectionIdValue)) {
         return NextResponse.json({ error: "Invalid work section" }, { status: 400 });
       }
-      const section = await WorkSection.findOne({ _id: body.workSectionId, projectId: projectIdValue }).select("_id").lean();
+      const section = await WorkSection.findOne({
+        _id: workSectionIdValue,
+        projectId: projectId,
+      }).select("_id").lean();
       if (!section) return NextResponse.json({ error: "Work section does not belong to this project" }, { status: 400 });
-      workSectionId = body.workSectionId;
+      workSectionId = workSectionIdValue;
     }
 
     const quantity = Number(body.quantity);
@@ -132,7 +125,7 @@ export async function POST(request: NextRequest) {
     }
 
     const item = await BOQItem.create({
-      projectId: projectIdValue,
+      projectId,
       workSectionId,
       itemNo,
       description,
