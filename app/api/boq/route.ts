@@ -98,7 +98,8 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
-    const project = await Project.findById(projectId).select("budget").lean();
+    const projectIdValue: string = projectId;
+    const project = await Project.findById(projectIdValue).select("budget").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
     if (!canAccessProject(session.role, null, session.id)) {
       return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
       if (!mongoose.Types.ObjectId.isValid(body.workSectionId)) {
         return NextResponse.json({ error: "Invalid work section" }, { status: 400 });
       }
-      const section = await WorkSection.findOne({ _id: body.workSectionId, projectId }).select("_id").lean();
+      const section = await WorkSection.findOne({ _id: body.workSectionId, projectId: projectIdValue }).select("_id").lean();
       if (!section) return NextResponse.json({ error: "Work section does not belong to this project" }, { status: 400 });
       workSectionId = body.workSectionId;
     }
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
     }
 
     const item = await BOQItem.create({
-      projectId,
+      projectId: projectIdValue,
       workSectionId,
       itemNo,
       description,
