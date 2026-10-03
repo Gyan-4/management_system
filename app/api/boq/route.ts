@@ -83,20 +83,22 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const body = await request.json();
+    const projectId = String(body.projectId || "").trim();
     const itemNo = String(body.itemNo || "").trim();
     const description = String(body.description || "").trim();
     const unit = String(body.unit || "").trim();
 
-    if (!body.projectId || !itemNo || !description || !body.category || !unit) {
+    if (!projectId || !itemNo || !description || !body.category || !unit) {
       return NextResponse.json({ error: "Project, item number, description, category, and unit are required" }, { status: 400 });
     }
-    if (!mongoose.Types.ObjectId.isValid(body.projectId)) {
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
       return NextResponse.json({ error: "Invalid project id" }, { status: 400 });
     }
 
     await connectDB();
-    const project = await Project.findById(body.projectId).select("budget").lean();
+    const project = await Project.findById(projectId).select("budget").lean();
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
     if (!canAccessProject(session.role, null, session.id)) {
       return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
@@ -119,7 +121,7 @@ export async function POST(request: NextRequest) {
     }
 
     const existingBOQ = await BOQItem.aggregate([
-      { $match: { projectId: new mongoose.Types.ObjectId(body.projectId) } },
+      { $match: { projectId: new mongoose.Types.ObjectId(projectId) } },
       { $group: { _id: null, total: { $sum: "$totalCost" } } },
     ]);
     const currentTotal = Number(existingBOQ[0]?.total || 0);
@@ -129,7 +131,7 @@ export async function POST(request: NextRequest) {
     }
 
     const item = await BOQItem.create({
-      projectId: body.projectId,
+      projectId,
       workSectionId,
       itemNo,
       description,
