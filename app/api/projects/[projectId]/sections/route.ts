@@ -8,6 +8,24 @@ import { getSession, canAccessProject } from "@/lib/session";
 
 type Context = { params: Promise<{ projectId: string }> };
 
+type SectionItem = {
+  _id?: string;
+  boqItemId?: string | null;
+  description: string;
+  category: string;
+  calculation?: string;
+  quantity: number;
+  unit: string;
+  unitCost: number;
+  actualCost?: number;
+  ledgerActualQuantity: number;
+  ledgerActualCost: number;
+  ledgerQuantityVariance: number;
+  ledgerCostVariance: number;
+  itemNo?: string;
+  source: "BOQ" | "Manual";
+};
+
 const DEFAULT_SECTIONS = [
   "Foundation",
   "Structural Frame",
@@ -54,8 +72,6 @@ export async function GET(_request: NextRequest, { params }: Context) {
         actualByBOQ.set(key, current);
       }
 
-      // Only costs without a BOQ link are counted directly at section level.
-      // BOQ-linked costs are picked up from their BOQ line, avoiding double counting.
       if (row.workSectionId && !row.boqItemId) {
         const key = String(row.workSectionId);
         const current = actualBySection.get(key) || { quantity: 0, amount: 0 };
@@ -65,18 +81,40 @@ export async function GET(_request: NextRequest, { params }: Context) {
       }
     });
 
-    const boqBySection = new Map<string, typeof boqItems>();
+    const boqBySection = new Map<string, Array<{
+      _id: unknown;
+      workSectionId?: unknown;
+      itemNo: string;
+      description: string;
+      category: string;
+      unit: string;
+      quantity: number;
+      unitCost: number;
+      totalCost: number;
+    }>>();
+
     boqItems.forEach((item) => {
       if (!item.workSectionId) return;
       const key = String(item.workSectionId);
       const current = boqBySection.get(key) || [];
-      current.push(item);
+      current.push(item as unknown as {
+        _id: unknown;
+        workSectionId?: unknown;
+        itemNo: string;
+        description: string;
+        category: string;
+        unit: string;
+        quantity: number;
+        unitCost: number;
+        totalCost: number;
+      });
       boqBySection.set(key, current);
     });
 
     return NextResponse.json(sections.map((section) => {
       const boqLines = boqBySection.get(String(section._id)) || [];
-      const derivedItems = boqLines.map((item) => {
+
+      const derivedItems: SectionItem[] = boqLines.map((item) => {
         const actual = actualByBOQ.get(String(item._id)) || { quantity: 0, amount: 0 };
         return {
           _id: String(item._id),
@@ -97,39 +135,46 @@ export async function GET(_request: NextRequest, { params }: Context) {
         };
       });
 
-      const legacyItems = (section.items as unknown as Array<Record<string, unknown>>)
+      const legacyItems: SectionItem[] = (section.items as unknown as Array<Record<string, unknown>>)
         .filter((item) => !item.boqItemId)
         .map((item) => ({
-          ...item,
-          source: "Manual",
+          _id: item._id ? String(item._id) : undefined,
+          description: String(item.description || ""),
+          category: String(item.category || "Other"),
+          calculation: String(item.calculation || ""),
+          quantity: Number(item.quantity || 0),
+          unit: String(item.unit || ""),
+          unitCost: Number(item.unitCost || 0),
+          actualCost: Number(item.actualCost || 0),
+          boqItemId: null,
           ledgerActualQuantity: 0,
           ledgerActualCost: 0,
           ledgerQuantityVariance: 0,
           ledgerCostVariance: Number(item.quantity || 0) * Number(item.unitCost || 0) - Number(item.actualCost || 0),
+          source: "Manual",
         }));
 
-      const items = [...derivedItems, ...legacyItems];
-      const estimated = derivedItems.reduce((sum, item) => sum + item.quantity * item.unitCost, 0)
-        + legacyItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitCost || 0), 0);
-      const boqActual = derivedItems.reduce((sum, item) => sum + Number(item.ledgerActualCost || 0), 0);
+      const items: SectionItem[] = [...derivedItems, ...legacyItems];
+      const estimated = items.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
+      const boqActual = derivedItems.reduce((sum, item) => sum + item.ledgerActualCost, 0);
       const directActual = actualBySection.get(String(section._id))?.amount || 0;
-      const actual = boqActual + directActual + legacyItems.reduce((sum, item) => sum + Number(item.actualCost || 0), 0);
+      const legacyActual = legacyItems.reduce((sum, item) => sum + Number(item.actualCost || 0), 0);
+      const actual = boqActual + directActual + legacyActual;
 
       const weightedCompletion = derivedItems.reduce((sum, item) => {
         const plannedCost = item.quantity * item.unitCost;
         const completion = item.quantity > 0
-          ? Math.min(1, Math.max(0, Number(item.ledgerActualQuantity || 0) / item.quantity))
+          ? Math.min(1, Math.max(0, item.ledgerActualQuantity / item.quantity))
           : plannedCost > 0
-            ? Math.min(1, Math.max(0, Number(item.ledgerActualCost || 0) / plannedCost))
+            ? Math.min(1, Math.max(0, item.ledgerActualCost / plannedCost))
             : 0;
         return sum + plannedCost * completion;
       }, 0);
-      const legacyProgress = legacyItems.length
-        ? legacyItems.reduce((sum, item) => sum + Number(item.actualCost || 0), 0) /
-          Math.max(1, legacyItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitCost || 0), 0))
-        : 0;
+
+      const legacyPlanned = legacyItems.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
+      const legacyCompletedValue = legacyItems.reduce((sum, item) => sum + Math.min(item.quantity * item.unitCost, Math.max(0, Number(item.actualCost || 0))), 0);
       const progress = estimated > 0
-        ? Math.min(100, Math.max(0, ((weightedCompletion + legacyProgress * legacyItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitCost || 0), 0)) / estimated) * 100))
+        ? Math.min(100, Math.max(0, ((weightedCompletion + legacyCompletedValue) / estimated) * 100))
         : 0;
 
       return {
