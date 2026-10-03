@@ -8,6 +8,18 @@ import { getSession, canAccessProject } from "@/lib/session";
 
 type Context = { params: Promise<{ projectId: string }> };
 
+type BoqLine = {
+  _id: unknown;
+  workSectionId?: unknown;
+  itemNo: string;
+  description: string;
+  category: string;
+  unit: string;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+};
+
 type SectionItem = {
   _id?: string;
   boqItemId?: string | null;
