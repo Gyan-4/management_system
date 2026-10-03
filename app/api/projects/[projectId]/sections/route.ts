@@ -97,17 +97,7 @@ export async function GET(_request: NextRequest, { params }: Context) {
       if (!item.workSectionId) return;
       const key = String(item.workSectionId);
       const current = boqBySection.get(key) || [];
-      current.push(item as unknown as {
-        _id: unknown;
-        workSectionId?: unknown;
-        itemNo: string;
-        description: string;
-        category: string;
-        unit: string;
-        quantity: number;
-        unitCost: number;
-        totalCost: number;
-      });
+      current.push(item as unknown as BoqLine);
       boqBySection.set(key, current);
     });
 
